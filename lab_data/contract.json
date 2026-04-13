@@ -1,0 +1,56 @@
+{
+    "IF0.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IH0.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IC0.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 200,
+        "pricetick": 0.2
+    },
+    "IF.CFX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IH.CFX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IC.CFX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 200,
+        "pricetick": 0.2
+    },
+    "IF.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IH.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 300,
+        "pricetick": 0.2
+    },
+    "IC.CFFEX": {
+        "long_rate": 0.0001,
+        "short_rate": 0.0001,
+        "size": 200,
+        "pricetick": 0.2
+    }
+}
