@@ -1,40 +1,29 @@
 #!/usr/bin/env python3
 """
-Tushare 股指期货数据下载脚本
-功能：下载 IF/IH/IC 主力连续合约的日线数据
-防爬：添加延迟和重试机制，避免被封禁
+Tushare 股指期货数据下载脚本 V3
+修复：更保守的延迟策略、更好的重试机制、合约智能过滤
 """
 
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import List
 import time
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import tushare as ts
-
 from vnpy.trader.object import BarData
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.alpha import AlphaLab
 
 
-class TushareDataDownloader:
-    """Tushare 数据下载器"""
+class TushareDataDownloaderV3:
+    """Tushare 数据下载器 V3 - 稳健版本"""
 
     # Tushare Token
     TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
-
-    # 股指期货合约映射（注意：Tushare 使用 .CFX 后缀，vn.py 使用 CFFEX 交易所）
-    FUTURES_MAP = {
-        "IF": "IF.CFFEX",  # 沪深300股指期货（vn.py格式，用于保存）
-        "IH": "IH.CFFEX",  # 上证50股指期货
-        "IC": "IC.CFFEX",  # 中证500股指期货
-    }
-
-    # Tushare 合约后缀（用于 API 调用）
-    TUSHARE_SUFFIX = ".CFX"
 
     # 合约交易参数（使用 vn.py 格式）
     CONTRACT_SETTINGS = {
@@ -58,16 +47,14 @@ class TushareDataDownloader:
         },
     }
 
-    # 防爬策略：请求间隔（秒）
-    # Tushare 免费账号限制：每天最多调用 fut_basic 10次
-    REQUEST_DELAY = 35  # 35秒延迟，避免触发频率限制
+    # 请求延迟（秒）
+    # Tushare 免费账号限制：每分钟最多调用 fut_daily 接口 20次
+    # 60秒 / 20次 = 3秒/次，我们使用5秒确保安全（留有缓冲）
+    REQUEST_DELAY = 5.0  # 保守策略：12次/分钟
     MAX_RETRIES = 3
 
     def __init__(self, lab_path: str):
-        """
-        初始化
-        :param lab_path: AlphaLab 数据路径
-        """
+        """初始化"""
         print("初始化 Tushare 连接...")
         ts.set_token(self.TUSHARE_TOKEN)
         self.pro = ts.pro_api()
@@ -78,26 +65,9 @@ class TushareDataDownloader:
         # 配置合约信息
         self._setup_contracts()
 
-        # 预加载所有合约列表（调用1次 fut_basic）
-        print("预加载合约列表...")
-        self.all_contracts = self._load_all_contracts()
-        print(f"  ✓ 共加载 {len(self.all_contracts)} 个合约")
-
-    def _load_all_contracts(self):
-        """加载所有合约列表（只调用一次 fut_basic）"""
-        try:
-            df = self.pro.fut_basic(
-                exchange="CFFEX",  # Tushare 使用 CFFEX 作为交易所代码
-                fut_type="1",  # 股指期货
-                fields="ts_code,symbol,name,list_date,delist_date",
-            )
-            return df
-        except Exception as e:
-            print(f"  ✗ 加载合约列表失败：{str(e)}")
-            print(f"  提示：Tushare 免费账号每天最多调用 fut_basic 接口 10 次")
-            import pandas as pd
-
-            return pd.DataFrame()
+        # 请求计数器（用于调试）
+        self.request_count = 0
+        self.last_request_time = None
 
     def _setup_contracts(self):
         """配置合约交易参数"""
@@ -109,8 +79,52 @@ class TushareDataDownloader:
                 f"乘数={settings['size']}, 最小变动={settings['pricetick']}"
             )
 
+    def _generate_contracts(
+        self, symbol: str, start_year: int, end_year: int
+    ) -> List[str]:
+        """
+        生成合约代码列表（智能过滤）
+        :param symbol: 品种代码 (IF/IH/IC)
+        :param start_year: 开始年份
+        :param end_year: 结束年份
+        :return: 合约代码列表，如 ["IF2404.CFX", "IF2405.CFX", ...]
+        """
+        contracts = []
+
+        # 股指期货的交割月份：3, 6, 9, 12月
+        delivery_months = [3, 6, 9, 12]
+
+        for year in range(start_year, end_year + 1):
+            year_suffix = year % 100  # 两位年份后缀
+
+            for month in delivery_months:
+                # 生成合约代码
+                ts_code = f"{symbol}{year_suffix:02d}{month:02d}.CFX"
+
+                # 智能过滤：排除过于古老的合约
+                # 股指期货 IF 从 2010 年开始，IH 从 2015 年开始，IC 从 2015 年开始
+                if symbol == "IF" and year < 2010:
+                    continue
+                if symbol in ["IH", "IC"] and year < 2015:
+                    continue
+
+                contracts.append(ts_code)
+
+        return contracts
+
+    def _rate_limit_delay(self):
+        """速率限制延迟（确保不超过频率限制）"""
+        if self.last_request_time:
+            elapsed = time.time() - self.last_request_time
+            if elapsed < self.REQUEST_DELAY:
+                wait_time = self.REQUEST_DELAY - elapsed
+                print(f"        [延迟 {wait_time:.1f} 秒避免频率限制]")
+                time.sleep(wait_time)
+
+        self.last_request_time = time.time()
+
     def download_daily_data(
-        self, start_date: str, end_date: str, symbols: list[str] = None
+        self, start_date: str, end_date: str, symbols: List[str] = None
     ):
         """
         下载日线数据
@@ -119,19 +133,22 @@ class TushareDataDownloader:
         :param symbols: 合约列表，默认下载所有
         """
         if symbols is None:
-            symbols = list(self.FUTURES_MAP.keys())
+            symbols = ["IF", "IH", "IC"]
 
         print(f"\n{'=' * 60}")
         print("开始下载日线数据")
         print(f"时间范围：{start_date} - {end_date}")
         print(f"合约列表：{', '.join(symbols)}")
+        print(
+            f"延迟策略：{self.REQUEST_DELAY} 秒/请求（约 {60 / self.REQUEST_DELAY:.0f} 次/分钟）"
+        )
         print(f"{'=' * 60}\n")
 
         success_count = 0
         failed_symbols = []
 
         for symbol in symbols:
-            vt_symbol = self.FUTURES_MAP[symbol]
+            vt_symbol = f"{symbol}.CFFEX"
             print(f"\n[{symbol}] 开始下载 {vt_symbol}...")
 
             try:
@@ -151,25 +168,23 @@ class TushareDataDownloader:
                     print(f"  ✗ {vt_symbol} 下载数据为空")
                     failed_symbols.append(symbol)
 
-                # 防爬：延迟
-                time.sleep(self.REQUEST_DELAY)
-
             except Exception as e:
                 print(f"  ✗ {vt_symbol} 下载失败：{str(e)}")
+                import traceback
+
+                traceback.print_exc()
                 failed_symbols.append(symbol)
 
         # 打印汇总
         print(f"\n{'=' * 60}")
-        print("下载完成！")
+        print(f"下载完成！")
         print(f"  成功：{success_count}/{len(symbols)}")
         if failed_symbols:
             print(f"  失败：{', '.join(failed_symbols)}")
         print(f"{'=' * 60}\n")
 
-    def _download_with_retry(self, symbol: str, start: str, end: str) -> list[BarData]:
-        """
-        带重试机制的下载
-        """
+    def _download_with_retry(self, symbol: str, start: str, end: str) -> List[BarData]:
+        """带重试机制的下载"""
         for attempt in range(self.MAX_RETRIES):
             try:
                 # 调用 Tushare API
@@ -177,15 +192,16 @@ class TushareDataDownloader:
 
                 if df is not None and len(df) > 0:
                     # 转换为 BarData
-                    bars = self._convert_to_bars(df, self.FUTURES_MAP[symbol])
+                    bars = self._convert_to_bars(df, symbol)
                     return bars
                 else:
                     return []
 
             except Exception as e:
                 if attempt < self.MAX_RETRIES - 1:
-                    wait_time = (attempt + 1) * 2  # 指数退避
+                    wait_time = 60  # 频率限制时，等待1分钟再重试
                     print(f"  第 {attempt + 1} 次尝试失败，{wait_time}秒后重试...")
+                    print(f"  错误：{str(e)}")
                     time.sleep(wait_time)
                 else:
                     raise e
@@ -193,42 +209,34 @@ class TushareDataDownloader:
         return []
 
     def _fetch_from_tushare(self, symbol: str, start: str, end: str):
-        """
-        从 Tushare 获取数据
-        注意：使用预加载的合约列表，避免重复调用 fut_basic
-        """
+        """从 Tushare 获取数据"""
         try:
-            # 检查预加载的合约列表是否为空
-            if self.all_contracts is None or len(self.all_contracts) == 0:
-                print(f"    ⚠ 合约列表为空，尝试重新加载...")
-                self.all_contracts = self._load_all_contracts()
-                if self.all_contracts is None or len(self.all_contracts) == 0:
-                    print(f"    ✗ 无法加载合约列表，跳过 {symbol}")
-                    return None
+            # 解析日期范围
+            start_dt = datetime.strptime(start, "%Y%m%d")
+            end_dt = datetime.strptime(end, "%Y%m%d")
 
-            # 从预加载的合约列表中筛选当前品种
-            symbol_contracts = self.all_contracts[
-                self.all_contracts["symbol"].str.contains(symbol)
-            ]
+            # 生成合约列表（覆盖时间范围，不过度扩展）
+            contracts = self._generate_contracts(
+                symbol,
+                max(start_dt.year - 1, 2010 if symbol == "IF" else 2015),
+                end_dt.year + 1,
+            )
 
-            if len(symbol_contracts) == 0:
-                print(f"    未找到 {symbol} 相关合约")
-                return None
+            print(f"    生成 {len(contracts)} 个合约代码")
+            if len(contracts) > 0:
+                print(f"    示例: {contracts[:3]} ... {contracts[-3:]}")
 
-            print(f"    找到 {len(symbol_contracts)} 个合约")
-
-            # 步骤1：选择在时间范围内的合约
+            # 步骤1：下载每个合约的数据
             all_bars = []
-            contract_count = 0
+            success_count = 0
 
-            for _, contract in symbol_contracts.iterrows():
-                contract_count += 1
-                ts_code = contract["ts_code"]
-                print(
-                    f"    [{contract_count}/{len(symbol_contracts)}] 下载 {ts_code}..."
-                )
+            for i, ts_code in enumerate(contracts):
+                self.request_count += 1
+                print(f"    [{i + 1}/{len(contracts)}] 下载 {ts_code}...")
 
-                # 下载该合约的历史数据
+                # 速率限制：请求前检查延迟
+                self._rate_limit_delay()
+
                 try:
                     df = self.pro.fut_daily(
                         ts_code=ts_code, start_date=start, end_date=end
@@ -236,21 +244,36 @@ class TushareDataDownloader:
 
                     if df is not None and len(df) > 0:
                         all_bars.append(df)
+                        success_count += 1
                         print(f"        ✓ {len(df)} 条数据")
                     else:
-                        print("        - 无数据")
+                        print(f"        - 无数据（可能合约未上市或已退市）")
 
-                    # 防爬：每个合约之间延迟
-                    if contract_count < len(symbol_contracts):
-                        print(f"        等待 {self.REQUEST_DELAY} 秒...")
-                        time.sleep(self.REQUEST_DELAY)
+                    # 速率限制：请求后延迟
+                    # 注意：不需要在这里延迟，因为下一次循环会调用 _rate_limit_delay()
 
                 except Exception as e:
-                    print(f"        ✗ 失败：{str(e)}")
-                    # 即使失败也延迟，避免触发频率限制
-                    if contract_count < len(symbol_contracts):
-                        time.sleep(self.REQUEST_DELAY)
+                    error_msg = str(e)
+                    if "每分钟最多访问" in error_msg or "频率" in error_msg:
+                        print(f"        ✗ 频率限制，等待 60 秒...")
+                        time.sleep(60)
+                        # 重试当前合约
+                        try:
+                            df = self.pro.fut_daily(
+                                ts_code=ts_code, start_date=start, end_date=end
+                            )
+                            if df is not None and len(df) > 0:
+                                all_bars.append(df)
+                                success_count += 1
+                                print(f"        ✓ 重试成功：{len(df)} 条数据")
+                        except:
+                            print(f"        ✗ 重试失败，跳过")
+                    else:
+                        print(f"        ✗ 失败：{error_msg}")
+
                     continue
+
+            print(f"    成功下载 {success_count}/{len(contracts)} 个合约")
 
             # 步骤2：合并所有合约数据
             if all_bars:
@@ -272,7 +295,7 @@ class TushareDataDownloader:
 
                 return df_merged
             else:
-                print("    没有成功下载任何数据")
+                print(f"    没有成功下载任何数据")
                 return None
 
         except Exception as e:
@@ -283,16 +306,11 @@ class TushareDataDownloader:
 
         return None
 
-    def _convert_to_bars(self, df, vt_symbol: str) -> list[BarData]:
-        """
-        转换 pandas DataFrame 为 BarData 列表
-        """
-        symbol, exchange = vt_symbol.split(".")
-
+    def _convert_to_bars(self, df, symbol: str) -> List[BarData]:
+        """转换 pandas DataFrame 为 BarData 列表"""
         bars = []
         # 使用 pandas 的 iterrows() 方法
         for _, row in df.iterrows():
-            # Tushare 字段映射：trade_date, open, high, low, close, vol, amount, oi
             try:
                 bar = BarData(
                     symbol=symbol,
@@ -303,9 +321,9 @@ class TushareDataDownloader:
                     high_price=float(row["high"]),
                     low_price=float(row["low"]),
                     close_price=float(row["close"]),
-                    volume=float(row.get("vol", row.get("volume", 0))),
+                    volume=float(row.get("vol", 0)),
                     turnover=float(row.get("amount", 0)),
-                    open_interest=float(row.get("oi", row.get("open_int", 0))),
+                    open_interest=float(row.get("oi", 0)),
                     gateway_name="TUSHARE",
                 )
                 bars.append(bar)
@@ -321,31 +339,35 @@ def main():
     # 配置参数
     LAB_PATH = "/Users/w4sh8899/project/vnpy/lab_data"
 
+    print("=== 脚本开始执行 ===")
+
     # 计算日期范围（过去5年）
     end_date = datetime(2025, 4, 13)
-    start_date = datetime(2020, 4, 13)  # 5年数据
+    start_date = datetime(2020, 4, 13)
+    print(f"日期范围: {start_date} - {end_date}")
 
     end_str = end_date.strftime("%Y%m%d")
     start_str = start_date.strftime("%Y%m%d")
 
     print(f"\n{'=' * 60}")
-    print("VNPY 股指期货数据下载器")
+    print(f"VNPY 股指期货数据下载器 V3")
     print(f"{'=' * 60}")
-    print("数据源：Tushare")
+    print(f"数据源：Tushare")
     print(f"数据路径：{LAB_PATH}")
     print(f"时间范围：{start_str} - {end_str}")
     print(f"{'=' * 60}\n")
 
     # 创建下载器
     try:
-        downloader = TushareDataDownloader(LAB_PATH)
+        downloader = TushareDataDownloaderV3(LAB_PATH)
 
-        # 下载数据（下载所有合约）
+        # 下载数据
         downloader.download_daily_data(start_str, end_str)
 
-        print("\n✓ 数据下载完成！")
-        print("\n可以使用以下命令验证数据：")
-        print("  source venv/bin/activate")
+        print(f"\n✓ 数据下载完成！")
+        print(f"总请求次数：{downloader.request_count}")
+        print(f"\n可以使用以下命令验证数据：")
+        print(f"  source venv/bin/activate")
         print(
             f"  python -c \"from vnpy.alpha import AlphaLab; lab = AlphaLab('{LAB_PATH}'); print(lab.get_bar_overview())\""
         )
