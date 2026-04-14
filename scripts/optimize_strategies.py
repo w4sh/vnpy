@@ -43,12 +43,12 @@ class StrategyOptimizer:
         print("布林带策略参数优化")
         print("=" * 60)
 
-        # 定义参数网格
+        # 定义参数网格（扩大范围以寻找产生交易的参数）
         param_grid = {
-            "ma_window": [10, 20, 30],
-            "std_window": [10, 20, 30],
-            "dev_mult": [1.5, 2.0, 2.5],
-            "init_days": [20, 30],
+            "ma_window": [5, 10, 20],
+            "std_window": [5, 10, 20],
+            "dev_mult": [1.0, 1.5, 2.0],
+            "init_days": [10, 20],
         }
 
         # 生成所有参数组合
@@ -105,12 +105,12 @@ class StrategyOptimizer:
         print("动量策略参数优化")
         print("=" * 60)
 
-        # 定义参数网格
+        # 定义参数网格（降低阈值以提高触发频率）
         param_grid = {
-            "momentum_window": [10, 20, 30],
-            "entry_threshold": [0.01, 0.02, 0.03],
-            "exit_threshold": [-0.005, -0.01, -0.02],
-            "init_days": [20, 30],
+            "momentum_window": [5, 10, 20],
+            "entry_threshold": [0.003, 0.005, 0.01],
+            "exit_threshold": [-0.002, -0.003, -0.005],
+            "init_days": [10, 20],
         }
 
         # 生成所有参数组合

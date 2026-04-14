@@ -1,0 +1,32 @@
+双均线策略A股回测结果
+============================================================
+回测时间：2020-04-13 - 2025-04-13
+股票数量：5
+快线周期：5 日
+慢线周期：20 日
+初始资金：1,000,000
+============================================================
+start_date: 2020-04-13
+end_date: 2025-04-11
+total_days: 1212
+profit_days: 406
+loss_days: 465
+capital: 1000000
+end_balance: 996153.549583
+max_drawdown: -7305.493889000034
+max_ddpercent: -0.7302997120334331
+max_drawdown_duration: 1283
+total_net_pnl: -3846.4504169999977
+daily_net_pnl: -3.17363895792079
+total_commission: 340.740417
+daily_commission: 0.2811389579207921
+total_turnover: 1135801.39
+daily_turnover: 937.1298597359735
+total_trade_count: 364
+daily_trade_count: 0.30033003300330036
+total_return: -0.3846450416999936
+annual_return: -0.07616733499009774
+daily_return: -0.0003165179903466109
+return_std: 0.017079958962227356
+sharpe_ratio: -0.28708942640869234
+return_drawdown_ratio: -0.5265147675767196

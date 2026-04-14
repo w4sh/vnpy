@@ -29,10 +29,10 @@ class MomentumStrategy(AlphaStrategy):
 
     # 策略参数
     momentum_window: int = 20  # 动量计算周期
-    entry_threshold: float = 0.02  # 入场阈值（2%）
-    exit_threshold: float = -0.01  # 出场阈值（-1%）
+    entry_threshold: float = 0.005  # 入场阈值（0.5%，降低以提高触发频率）
+    exit_threshold: float = -0.003  # 出场阈值（-0.3%）
     init_days: int = 30  # 初始化天数
-    position_pct: float = 0.95  # 仓位比例
+    position_pct: float = 0.2  # 仓位比例（降低到20%避免过度杠杆）
 
     def on_init(self) -> None:
         """策略初始化"""
@@ -46,7 +46,6 @@ class MomentumStrategy(AlphaStrategy):
         self.bars: defaultdict = defaultdict(list)
 
         # 交易状态
-        self.targets: defaultdict = defaultdict(int)
         self.entry_bars: defaultdict = defaultdict(object)
 
     def on_bars(self, bars: dict[str, BarData]) -> None:
@@ -94,12 +93,12 @@ class MomentumStrategy(AlphaStrategy):
 
     def generate_signals(self, vt_symbol: str, bar: BarData, momentum: float) -> None:
         """生成交易信号"""
-        current_pos = self.targets[vt_symbol]
+        current_pos = self.get_target(vt_symbol)
 
         if momentum > self.entry_threshold and current_pos == 0:
             # 正向动量超阈值，买入
             target_volume = self.calculate_position_size(vt_symbol, bar)
-            self.targets[vt_symbol] = target_volume
+            self.set_target(vt_symbol, target_volume)
             self.entry_bars[vt_symbol] = bar
             self.write_log(
                 f"{vt_symbol} 动量买入 价格：{bar.close_price:.2f} 动量：{momentum:.2%}"
@@ -108,7 +107,7 @@ class MomentumStrategy(AlphaStrategy):
         elif momentum < -self.entry_threshold and current_pos == 0:
             # 负向动量超阈值，卖出（做空）
             target_volume = self.calculate_position_size(vt_symbol, bar)
-            self.targets[vt_symbol] = -target_volume
+            self.set_target(vt_symbol, -target_volume)
             self.entry_bars[vt_symbol] = bar
             self.write_log(
                 f"{vt_symbol} 动量卖出 价格：{bar.close_price:.2f} 动量：{momentum:.2%}"
@@ -117,7 +116,7 @@ class MomentumStrategy(AlphaStrategy):
         elif current_pos > 0:
             # 多头出场条件
             if momentum < self.exit_threshold:
-                self.targets[vt_symbol] = 0
+                self.set_target(vt_symbol, 0)
                 self.write_log(
                     f"{vt_symbol} 动量转负平多 "
                     f"价格：{bar.close_price:.2f} 动量：{momentum:.2%}"
@@ -125,7 +124,7 @@ class MomentumStrategy(AlphaStrategy):
 
             # 检查持仓时间
             elif self.should_close_position(vt_symbol, bar):
-                self.targets[vt_symbol] = 0
+                self.set_target(vt_symbol, 0)
                 self.write_log(
                     f"{vt_symbol} 持仓时间到期平多 价格：{bar.close_price:.2f}"
                 )
@@ -133,7 +132,7 @@ class MomentumStrategy(AlphaStrategy):
         elif current_pos < 0:
             # 空头出场条件
             if momentum > -self.exit_threshold:
-                self.targets[vt_symbol] = 0
+                self.set_target(vt_symbol, 0)
                 self.write_log(
                     f"{vt_symbol} 动量转正平空 "
                     f"价格：{bar.close_price:.2f} 动量：{momentum:.2%}"
@@ -141,7 +140,7 @@ class MomentumStrategy(AlphaStrategy):
 
             # 检查持仓时间
             elif self.should_close_position(vt_symbol, bar):
-                self.targets[vt_symbol] = 0
+                self.set_target(vt_symbol, 0)
                 self.write_log(
                     f"{vt_symbol} 持仓时间到期平空 价格：{bar.close_price:.2f}"
                 )

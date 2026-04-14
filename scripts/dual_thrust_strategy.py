@@ -40,9 +40,6 @@ class DualThrustStrategy(AlphaStrategy):
         self.am: defaultdict = defaultdict(ArrayManager)
         self.bars: defaultdict = defaultdict(list)
 
-        # 交易状态
-        self.targets: defaultdict = defaultdict(int)
-
     def on_bars(self, bars: dict[str, BarData]) -> None:
         """K线数据回调"""
         for vt_symbol, bar in bars.items():
@@ -52,8 +49,7 @@ class DualThrustStrategy(AlphaStrategy):
 
             # 检查数据充足性
             if not self.am[vt_symbol].inited:
-                self.am[vt_symbol].update_bar(bar)
-                if len(self.am[vt_symbol]) < self.init_days:
+                if len(self.bars[vt_symbol]) < self.init_days:
                     continue
                 else:
                     self.am[vt_symbol].inited = True
@@ -95,11 +91,11 @@ class DualThrustStrategy(AlphaStrategy):
         long_entry = bar.close_price > upper_band
         short_entry = bar.close_price < lower_band
 
-        current_pos = self.targets[vt_symbol]
+        current_pos = self.get_target(vt_symbol)
 
         if long_entry and current_pos == 0:
             # 突破上轨，做多
-            self.targets[vt_symbol] = self.fixed_size
+            self.set_target(vt_symbol, self.fixed_size)
             self.write_log(
                 f"{vt_symbol} 突破上轨买入 "
                 f"价格：{bar.close_price:.2f} 上轨：{upper_band:.2f}"
@@ -107,7 +103,7 @@ class DualThrustStrategy(AlphaStrategy):
 
         elif short_entry and current_pos == 0:
             # 突破下轨，做空
-            self.targets[vt_symbol] = -self.fixed_size
+            self.set_target(vt_symbol, -self.fixed_size)
             self.write_log(
                 f"{vt_symbol} 突破下轨卖出 "
                 f"价格：{bar.close_price:.2f} 下轨：{lower_band:.2f}"
@@ -115,7 +111,7 @@ class DualThrustStrategy(AlphaStrategy):
 
         elif current_pos > 0 and bar.close_price < lower_band:
             # 多头止损
-            self.targets[vt_symbol] = 0
+            self.set_target(vt_symbol, 0)
             self.write_log(
                 f"{vt_symbol} 多头止损 "
                 f"价格：{bar.close_price:.2f} 下轨：{lower_band:.2f}"
@@ -123,7 +119,7 @@ class DualThrustStrategy(AlphaStrategy):
 
         elif current_pos < 0 and bar.close_price > upper_band:
             # 空头止损
-            self.targets[vt_symbol] = 0
+            self.set_target(vt_symbol, 0)
             self.write_log(
                 f"{vt_symbol} 空头止损 "
                 f"价格：{bar.close_price:.2f} 上轨：{upper_band:.2f}"

@@ -32,7 +32,7 @@ class BollingerBandsStrategy(AlphaStrategy):
     std_window: int = 20  # 标准差周期
     dev_mult: float = 2.0  # 标准差倍数
     init_days: int = 30  # 初始化天数
-    position_pct: float = 0.95  # 仓位比例
+    position_pct: float = 0.2  # 仓位比例（降低到20%避免过度杠杆）
 
     def on_init(self) -> None:
         """策略初始化"""
@@ -45,7 +45,6 @@ class BollingerBandsStrategy(AlphaStrategy):
         self.bars: defaultdict = defaultdict(list)
 
         # 交易状态
-        self.targets: defaultdict = defaultdict(int)
         self.signals: defaultdict = defaultdict(str)
 
     def on_bars(self, bars: dict[str, BarData]) -> None:
@@ -69,6 +68,22 @@ class BollingerBandsStrategy(AlphaStrategy):
             )
 
             if ma and upper_band and lower_band:
+                # 计算位置百分比（用于调试）
+                if upper_band != lower_band:
+                    bb_position = (bar.close_price - lower_band) / (
+                        upper_band - lower_band
+                    )
+                else:
+                    bb_position = 0.5
+
+                # 每10天输出一次调试信息
+                if len(self.bars[vt_symbol]) % 10 == 0:
+                    self.write_log(
+                        f"{vt_symbol} 调试: 价格={bar.close_price:.2f}, "
+                        f"中轨={ma:.2f}, 上轨={upper_band:.2f}, "
+                        f"下轨={lower_band:.2f}, 位置={bb_position:.2f}"
+                    )
+
                 # 生成交易信号
                 self.generate_signals(vt_symbol, bar, ma, upper_band, lower_band)
 
@@ -112,13 +127,13 @@ class BollingerBandsStrategy(AlphaStrategy):
         else:
             bb_position = 0.5
 
-        current_pos = self.targets[vt_symbol]
+        current_pos = self.get_target(vt_symbol)
 
-        # 信号逻辑
-        if bb_position <= 0.1 and current_pos == 0:
-            # 价格触及下轨，超卖买入
+        # 信号逻辑（降低阈值以提高触发频率）
+        if bb_position <= 0.2 and current_pos == 0:
+            # 价格触及下轨20%位置，超卖买入
             target_volume = self.calculate_position_size(vt_symbol, bar)
-            self.targets[vt_symbol] = target_volume
+            self.set_target(vt_symbol, target_volume)
             self.write_log(
                 f"{vt_symbol} 布林带下轨买入 "
                 f"价格：{bar.close_price:.2f} 下轨：{lower_band:.2f} "
@@ -126,10 +141,10 @@ class BollingerBandsStrategy(AlphaStrategy):
             )
             self.signals[vt_symbol] = "buy"
 
-        elif bb_position >= 0.9 and current_pos == 0:
-            # 价格触及上轨，超买卖出（做空）
+        elif bb_position >= 0.8 and current_pos == 0:
+            # 价格触及上轨80%位置，超买卖出（做空）
             target_volume = self.calculate_position_size(vt_symbol, bar)
-            self.targets[vt_symbol] = -target_volume
+            self.set_target(vt_symbol, -target_volume)
             self.write_log(
                 f"{vt_symbol} 布林带上轨卖出 "
                 f"价格：{bar.close_price:.2f} 上轨：{upper_band:.2f} "
@@ -139,7 +154,7 @@ class BollingerBandsStrategy(AlphaStrategy):
 
         elif bb_position >= 0.5 and current_pos > 0:
             # 价格回到中轨附近，平多仓
-            self.targets[vt_symbol] = 0
+            self.set_target(vt_symbol, 0)
             self.write_log(
                 f"{vt_symbol} 价格回归中轨平多 "
                 f"价格：{bar.close_price:.2f} 中轨：{ma:.2f}"
@@ -147,7 +162,7 @@ class BollingerBandsStrategy(AlphaStrategy):
 
         elif bb_position <= 0.5 and current_pos < 0:
             # 价格回到中轨附近，平空仓
-            self.targets[vt_symbol] = 0
+            self.set_target(vt_symbol, 0)
             self.write_log(
                 f"{vt_symbol} 价格回归中轨平空 "
                 f"价格：{bar.close_price:.2f} 中轨：{ma:.2f}"
