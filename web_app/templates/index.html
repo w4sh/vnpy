@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vn.py 量化交易平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .nav button {
+            flex: 1;
+            padding: 15px;
+            background: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            color: #667eea;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .nav button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-height: 400px;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .strategy-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .strategy-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .strategy-card.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .strategy-card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .strategy-card p {
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .results table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .results th,
+        .results td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .results th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .results tr:hover {
+            background: #f8f9fa;
+        }
+
+        .positive {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .negative {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .loading:after {
+            content: '...';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #3c3;
+        }
+
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .info-box h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .picker-results {
+            margin-top: 20px;
+        }
+
+        .stock-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stock-item .symbol {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .stock-item .details {
+            margin-top: 5px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 vn.py 量化交易平台</h1>
+            <p>专业级量化策略回测与选股系统</p>
+        </div>
+
+        <div class="nav">
+            <button class="nav-btn active" onclick="showPage('backtest')">策略回测</button>
+            <button class="nav-btn" onclick="showPage('picker')">智能选股</button>
+            <button class="nav-btn" onclick="showPage('compare')">策略对比</button>
+        </div>
+
+        <div class="content">
+            <!-- 回测页面 -->
+            <div id="backtest-page" class="page active">
+                <div class="section">
+                    <h3>📊 选择策略</h3>
+                    <div class="strategy-grid" id="strategy-grid">
+                        <!-- 策略卡片将由JavaScript动态生成 -->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>⚙️ 策略参数</h3>
+                    <div id="strategy-params">
+                        <!-- 参数表单将由JavaScript动态生成 -->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>📅 回测配置</h3>
+                    <div class="param-row">
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="start-date" value="2020-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="end-date" value="2025-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label>初始资金</label>
+                            <input type="number" id="capital" value="1000000" step="100000">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <button class="btn" onclick="runBacktest()">🚀 开始回测</button>
+                    <button class="btn btn-secondary" onclick="resetBacktest()">🔄 重置</button>
+                </div>
+
+                <div id="backtest-results" class="results"></div>
+            </div>
+
+            <!-- 选股页面 -->
+            <div id="picker-page" class="page">
+                <div class="section">
+                    <h3>🎯 选股策略</h3>
+                    <div class="strategy-grid">
+                        <div class="strategy-card" onclick="selectPickerStrategy('oversold')">
+                            <h4>📉 超卖策略</h4>
+                            <p>寻找被超卖的优质股票，价格触及布林带下轨，存在反弹机会</p>
+                        </div>
+                        <div class="strategy-card" onclick="selectPickerStrategy('overbought')">
+                            <h4>📈 超买策略</h4>
+                            <p>识别超买股票，价格触及布林带上轨，可能需要警惕或获利了结</p>
+                        </div>
+                        <div class="strategy-card" onclick="selectPickerStrategy('breakout_up')">
+                            <h4>💥 向上突破</h4>
+                            <p>捕捉强势突破行情，价格向上突破布林带上轨且开口</p>
+                        </div>
+                        <div class="strategy-card" onclick="selectPickerStrategy('squeeze')">
+                            <h4>🎪 布林带收缩</h4>
+                            <p>发现即将爆发的潜力股，布林带宽度极窄</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>⚙️ 选股参数</h3>
+                    <div class="param-row">
+                        <div class="form-group">
+                            <label>最低价格</label>
+                            <input type="number" id="min-price" value="5.0" step="1.0">
+                        </div>
+                        <div class="form-group">
+                            <label>最高价格</label>
+                            <input type="number" id="max-price" value="200.0" step="10.0">
+                        </div>
+                        <div class="form-group">
+                            <label>最小成交量</label>
+                            <input type="number" id="min-volume" value="5000000" step="1000000">
+                        </div>
+                    </div>
+                    <div class="param-row">
+                        <div class="form-group">
+                            <label>均线周期</label>
+                            <input type="number" id="ma-window" value="20" min="5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label>标准差周期</label>
+                            <input type="number" id="std-window" value="20" min="5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label>标准差倍数</label>
+                            <input type="number" id="dev-mult" value="2.0" min="1.0" max="3.0" step="0.1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>返回股票数量</label>
+                        <input type="number" id="top-n" value="20" min="5" max="100">
+                    </div>
+                </div>
+
+                <div class="section">
+                    <button class="btn" onclick="runStockPicker()">🔍 开始选股</button>
+                    <button class="btn btn-secondary" onclick="resetPicker()">🔄 重置</button>
+                </div>
+
+                <div id="picker-results" class="results"></div>
+            </div>
+
+            <!-- 策略对比页面 -->
+            <div id="compare-page" class="page">
+                <div class="section">
+                    <h3>📊 选择对比策略</h3>
+                    <div class="info-box">
+                        <h4>💡 使用提示</h4>
+                        <p>选择多个策略进行对比回测，快速找出最优策略组合</p>
+                    </div>
+                    <div class="strategy-grid" id="compare-strategy-grid">
+                        <!-- 策略选择卡片 -->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>⚙️ 对比配置</h3>
+                    <div class="param-row">
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="compare-start-date" value="2020-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="compare-end-date" value="2025-01-01">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <button class="btn" onclick="runCompare()">📊 开始对比</button>
+                    <button class="btn btn-secondary" onclick="resetCompare()">🔄 重置</button>
+                </div>
+
+                <div id="compare-results" class="results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // 全局变量
+        let selectedStrategies = [];
+        let selectedPickerStrategy = null;
+        let selectedCompareStrategies = [];
+        let allStrategies = {};
+
+        // 页面切换
+        function showPage(pageName) {
+            $('.page').removeClass('active');
+            $('#' + pageName + '-page').addClass('active');
+            $('.nav-btn').removeClass('active');
+            event.target.classList.add('active');
+        }
+
+        // 加载策略列表
+        function loadStrategies() {
+            $.get('/api/strategies', function(data) {
+                allStrategies = {};
+                data.strategies.forEach(strategy => {
+                    allStrategies[strategy.key] = strategy;
+
+                    // 创建回测策略卡片
+                    const card = `
+                        <div class="strategy-card" id="strategy-${strategy.key}" onclick="toggleStrategy('${strategy.key}')">
+                            <h4>${strategy.name}</h4>
+                            <p>${strategy.description}</p>
+                        </div>
+                    `;
+                    $('#strategy-grid').append(card);
+
+                    // 创建对比策略卡片
+                    const compareCard = `
+                        <div class="strategy-card" id="compare-strategy-${strategy.key}" onclick="toggleCompareStrategy('${strategy.key}')">
+                            <h4>${strategy.name}</h4>
+                            <p>${strategy.description}</p>
+                        </div>
+                    `;
+                    $('#compare-strategy-grid').append(compareCard);
+                });
+            });
+        }
+
+        // 切换策略选择
+        function toggleStrategy(strategyKey) {
+            const card = $(`#strategy-${strategyKey}`);
+
+            if (selectedStrategies.includes(strategyKey)) {
+                // 取消选择
+                selectedStrategies = selectedStrategies.filter(s => s !== strategyKey);
+                card.removeClass('selected');
+            } else {
+                // 选择策略
+                selectedStrategies.push(strategyKey);
+                card.addClass('selected');
+            }
+
+            updateStrategyParams();
+        }
+
+        // 更新策略参数显示
+        function updateStrategyParams() {
+            const paramsDiv = $('#strategy-params');
+            paramsDiv.empty();
+
+            if (selectedStrategies.length === 0) {
+                paramsDiv.html('<p style="color: #999;">请先选择策略</p>');
+                return;
+            }
+
+            if (selectedStrategies.length === 1) {
+                // 单策略：显示详细参数
+                const strategy = allStrategies[selectedStrategies[0]];
+                let html = '<div class="param-row">';
+
+                for (const [key, param] of Object.entries(strategy.params)) {
+                    html += `
+                        <div class="form-group">
+                            <label>${param.name}</label>
+                            <input type="${param.type}"
+                                   id="param-${key}"
+                                   value="${param.default}"
+                                   min="${param.min}"
+                                   max="${param.max}"
+                                   step="${param.type === 'float' ? '0.1' : '1'}">
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                paramsDiv.html(html);
+            } else {
+                // 多策略：使用默认参数
+                paramsDiv.html('<p style="color: #666;">多策略回测使用默认参数</p>');
+            }
+        }
+
+        // 运行回测
+        function runBacktest() {
+            if (selectedStrategies.length === 0) {
+                showError('请至少选择一个策略');
+                return;
+            }
+
+            const resultsDiv = $('#backtest-results');
+            resultsDiv.html('<div class="loading">回测运行中</div>');
+
+            // 构建请求数据
+            const requestData = {
+                strategies: selectedStrategies.map(key => ({
+                    key: key,
+                    params: getStrategyParams()
+                })),
+                symbols: ['000001.SZSE', '000002.SZSE', '600000.SSE', '600036.SSE', '601318.SSE'],
+                start_date: $('#start-date').val(),
+                end_date: $('#end-date').val(),
+                capital: parseInt($('#capital').val())
+            };
+
+            $.ajax({
+                url: '/api/backtest',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(requestData),
+                success: function(response) {
+                    displayBacktestResults(response);
+                },
+                error: function(xhr) {
+                    showError('回测失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                    resultsDiv.empty();
+                }
+            });
+        }
+
+        // 获取策略参数
+        function getStrategyParams() {
+            const params = {};
+
+            if (selectedStrategies.length === 1) {
+                const strategy = allStrategies[selectedStrategies[0]];
+                for (const key of Object.keys(strategy.params)) {
+                    const value = $(`#param-${key}`).val();
+                    params[key] = parseFloat(value);
+                }
+            }
+
+            return params;
+        }
+
+        // 显示回测结果
+        function displayBacktestResults(response) {
+            const resultsDiv = $('#backtest-results');
+
+            if (!response.success) {
+                showError('回测失败: ' + response.error);
+                return;
+            }
+
+            if (response.results.length === 0) {
+                showError('没有回测结果');
+                return;
+            }
+
+            let html = `
+                <h3>📊 回测结果</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>策略</th>
+                            <th>总收益率</th>
+                            <th>年化收益</th>
+                            <th>最大回撤</th>
+                            <th>夏普比率</th>
+                            <th>交易次数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            response.results.forEach(result => {
+                if (result.error) {
+                    html += `
+                        <tr>
+                            <td>${result.strategy}</td>
+                            <td colspan="5" class="error">${result.error}</td>
+                        </tr>
+                    `;
+                } else {
+                    const returnClass = result.total_return >= 0 ? 'positive' : 'negative';
+                    const sharpeClass = result.sharpe_ratio >= 0 ? 'positive' : 'negative';
+
+                    html += `
+                        <tr>
+                            <td><strong>${result.strategy}</strong></td>
+                            <td class="${returnClass}">${result.total_return.toFixed(2)}%</td>
+                            <td>${result.annual_return.toFixed(2)}%</td>
+                            <td class="negative">${result.max_ddpercent.toFixed(2)}%</td>
+                            <td class="${sharpeClass}">${result.sharpe_ratio.toFixed(2)}</td>
+                            <td>${result.total_trades}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            resultsDiv.html(html);
+        }
+
+        // 选股功能
+        function selectPickerStrategy(strategy) {
+            selectedPickerStrategy = strategy;
+            $('.picker-results').empty();
+
+            // 高亮选中的策略
+            $('.picker-page .strategy-card').removeClass('selected');
+            $(event.currentTarget).addClass('selected');
+        }
+
+        function runStockPicker() {
+            if (!selectedPickerStrategy) {
+                showError('请先选择选股策略');
+                return;
+            }
+
+            const resultsDiv = $('#picker-results');
+            resultsDiv.html('<div class="loading">正在扫描市场</div>');
+
+            const requestData = {
+                strategy: selectedPickerStrategy,
+                min_price: parseFloat($('#min-price').val()),
+                max_price: parseFloat($('#max-price').val()),
+                min_volume: parseInt($('#min-volume').val()),
+                ma_window: parseInt($('#ma-window').val()),
+                std_window: parseInt($('#std-window').val()),
+                dev_mult: parseFloat($('#dev-mult').val()),
+                top_n: parseInt($('#top-n').val())
+            };
+
+            $.ajax({
+                url: '/api/pick_stocks',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(requestData),
+                success: function(response) {
+                    displayPickerResults(response);
+                },
+                error: function(xhr) {
+                    showError('选股失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                    resultsDiv.empty();
+                }
+            });
+        }
+
+        function displayPickerResults(response) {
+            const resultsDiv = $('#picker-results');
+
+            if (!response.success) {
+                showError('选股失败: ' + response.error);
+                return;
+            }
+
+            if (response.results.length === 0) {
+                resultsDiv.html('<div class="info-box"><h4>🤷 没有找到符合条件的股票</h4><p>当前市场环境下没有股票符合该策略条件，请尝试调整参数或选择其他策略</p></div>');
+                return;
+            }
+
+            let html = `
+                <h3>🎯 选股结果 (${response.results.length}只)</h3>
+                <div class="picker-results">
+            `;
+
+            response.results.forEach((stock, index) => {
+                html += `
+                    <div class="stock-item">
+                        <div class="symbol">${index + 1}. ${stock.symbol}</div>
+                        <div class="details">
+                            价格: ¥${stock.price.toFixed(2)} |
+                            位置: ${(stock.bb_position * 100).toFixed(1)}% |
+                            得分: ${stock.score.toFixed(1)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            resultsDiv.html(html);
+        }
+
+        // 策略对比功能
+        function toggleCompareStrategy(strategyKey) {
+            const card = $(`#compare-strategy-${strategyKey}`);
+
+            if (selectedCompareStrategies.includes(strategyKey)) {
+                selectedCompareStrategies = selectedCompareStrategies.filter(s => s !== strategyKey);
+                card.removeClass('selected');
+            } else {
+                selectedCompareStrategies.push(strategyKey);
+                card.addClass('selected');
+            }
+        }
+
+        function runCompare() {
+            if (selectedCompareStrategies.length < 2) {
+                showError('请至少选择两个策略进行对比');
+                return;
+            }
+
+            const resultsDiv = $('#compare-results');
+            resultsDiv.html('<div class="loading">正在对比策略</div>');
+
+            const requestData = {
+                strategies: selectedCompareStrategies,
+                symbols: ['000001.SZSE', '000002.SZSE', '600000.SSE', '600036.SSE', '601318.SSE'],
+                start_date: $('#compare-start-date').val(),
+                end_date: $('#compare-end-date').val()
+            };
+
+            $.ajax({
+                url: '/api/compare_strategies',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(requestData),
+                success: function(response) {
+                    displayCompareResults(response);
+                },
+                error: function(xhr) {
+                    showError('对比失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                    resultsDiv.empty();
+                }
+            });
+        }
+
+        function displayCompareResults(response) {
+            const resultsDiv = $('#compare-results');
+
+            if (!response.success) {
+                showError('对比失败: ' + response.error);
+                return;
+            }
+
+            if (response.results.length === 0) {
+                showError('没有对比结果');
+                return;
+            }
+
+            // 找出最佳策略
+            let bestReturn = response.results[0];
+            let bestSharpe = response.results[0];
+
+            response.results.forEach(result => {
+                if (!result.error) {
+                    if (result.total_return > bestReturn.total_return) {
+                        bestReturn = result;
+                    }
+                    if (result.sharpe_ratio > bestSharpe.sharpe_ratio) {
+                        bestSharpe = result;
+                    }
+                }
+            });
+
+            let html = `
+                <h3>📊 策略对比结果</h3>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="value">${bestReturn.strategy}</div>
+                        <div class="label">最佳收益</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">${bestReturn.total_return.toFixed(2)}%</div>
+                        <div class="label">收益率</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">${bestSharpe.strategy}</div>
+                        <div class="label">最佳夏普</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">${bestSharpe.sharpe_ratio.toFixed(2)}</div>
+                        <div class="label">夏普比率</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>策略</th>
+                            <th>总收益率</th>
+                            <th>年化收益</th>
+                            <th>最大回撤</th>
+                            <th>夏普比率</th>
+                            <th>交易次数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            response.results.forEach(result => {
+                if (result.error) {
+                    html += `
+                        <tr>
+                            <td>${result.strategy}</td>
+                            <td colspan="5" class="error">${result.error}</td>
+                        </tr>
+                    `;
+                } else {
+                    const returnClass = result.total_return >= 0 ? 'positive' : 'negative';
+                    const sharpeClass = result.sharpe_ratio >= 0 ? 'positive' : 'negative';
+
+                    // 标记最佳策略
+                    const isBestReturn = result.strategy === bestReturn.strategy;
+                    const isBestSharpe = result.strategy === bestSharpe.strategy;
+
+                    html += `
+                        <tr>
+                            <td><strong>${result.strategy}</strong>
+                                ${isBestReturn ? ' 🏆' : ''}
+                                ${isBestSharpe ? ' ⭐' : ''}
+                            </td>
+                            <td class="${returnClass}">${result.total_return.toFixed(2)}%</td>
+                            <td>${result.annual_return.toFixed(2)}%</td>
+                            <td class="negative">${result.max_ddpercent.toFixed(2)}%</td>
+                            <td class="${sharpeClass}">${result.sharpe_ratio.toFixed(2)}</td>
+                            <td>${result.total_trades}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            resultsDiv.html(html);
+        }
+
+        // 重置功能
+        function resetBacktest() {
+            selectedStrategies = [];
+            $('.strategy-card').removeClass('selected');
+            $('#strategy-params').html('<p style="color: #999;">请先选择策略</p>');
+            $('#backtest-results').empty();
+        }
+
+        function resetPicker() {
+            selectedPickerStrategy = null;
+            $('.picker-page .strategy-card').removeClass('selected');
+            $('#picker-results').empty();
+        }
+
+        function resetCompare() {
+            selectedCompareStrategies = [];
+            $('#compare-strategy-grid .strategy-card').removeClass('selected');
+            $('#compare-results').empty();
+        }
+
+        // 错误显示
+        function showError(message) {
+            const errorHtml = `<div class="error">${message}</div>`;
+
+            // 在当前活动的页面显示错误
+            $('.page.active').prepend(errorHtml);
+
+            // 3秒后自动消失
+            setTimeout(function() {
+                $('.error').first().remove();
+            }, 3000);
+        }
+
+        // 页面加载完成后初始化
+        $(document).ready(function() {
+            loadStrategies();
+        });
+    </script>
+</body>
+</html>
