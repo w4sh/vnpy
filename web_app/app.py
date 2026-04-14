@@ -26,6 +26,9 @@ from scripts.bollinger_bands_strategy import BollingerBandsStrategy
 from scripts.momentum_strategy import MomentumStrategy
 from scripts.advanced_bollinger_picker import AdvancedBollingerPicker
 
+# 导入股票名称映射
+from web_app.stock_names import format_stock_symbol
+
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # 支持中文
 
@@ -304,9 +307,13 @@ def pick_stocks():
 
         formatted_results = []
         for stock in results:
+            # 格式化股票显示为中文名称(代码)
+            formatted_symbol = format_stock_symbol(stock["vt_symbol"])
+
             formatted_results.append(
                 {
-                    "symbol": stock["vt_symbol"],
+                    "symbol": formatted_symbol,  # 使用格式化后的显示
+                    "raw_symbol": stock["vt_symbol"],  # 保留原始代码用于后续处理
                     "price": stock["close_price"],
                     "volume": stock["volume"],
                     "bb_position": stock["bb_position"],
