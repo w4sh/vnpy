@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify
 import json
 import os
+import numpy as np
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -155,6 +156,22 @@ AVAILABLE_STRATEGIES = {
     },
 }
 
+
+def convert_numpy_types(obj):
+    """转换numpy类型为Python原生类型，用于JSON序列化"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    return obj
+
+
 # 选股策略定义
 PICKER_STRATEGIES = {
     "oversold": {"name": "超卖策略", "description": "价格触及下轨，买入机会"},
@@ -240,6 +257,8 @@ def run_backtest():
                     "sharpe_ratio": stats.get("sharpe_ratio", 0),
                     "total_trades": stats.get("total_trade_count", 0),
                 }
+                # 转换numpy类型为Python原生类型
+                result = convert_numpy_types(result)
                 results.append(result)
 
             except Exception as e:
@@ -355,16 +374,17 @@ def compare_strategies():
                 engine.calculate_result()
                 stats = engine.calculate_statistics()
 
-                results.append(
-                    {
-                        "strategy": strategy_config["name"],
-                        "total_return": stats.get("total_return", 0),
-                        "annual_return": stats.get("annual_return", 0),
-                        "max_ddpercent": stats.get("max_ddpercent", 0),
-                        "sharpe_ratio": stats.get("sharpe_ratio", 0),
-                        "total_trades": stats.get("total_trade_count", 0),
-                    }
-                )
+                result_dict = {
+                    "strategy": strategy_config["name"],
+                    "total_return": stats.get("total_return", 0),
+                    "annual_return": stats.get("annual_return", 0),
+                    "max_ddpercent": stats.get("max_ddpercent", 0),
+                    "sharpe_ratio": stats.get("sharpe_ratio", 0),
+                    "total_trades": stats.get("total_trade_count", 0),
+                }
+                # 转换numpy类型为Python原生类型
+                result_dict = convert_numpy_types(result_dict)
+                results.append(result_dict)
 
             except Exception as e:
                 results.append({"strategy": strategy_config["name"], "error": str(e)})
@@ -385,5 +405,5 @@ if __name__ == "__main__":
     static_dir.mkdir(exist_ok=True)
 
     print("启动vn.py量化交易Web界面...")
-    print("请访问: http://localhost:5000")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    print("请访问: http://localhost:5001")
+    app.run(debug=True, host="0.0.0.0", port=5001)
