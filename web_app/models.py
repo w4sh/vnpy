@@ -42,6 +42,8 @@ class Position(Base):
     stop_loss = Column(Numeric(10, 2))  # 止损价
     take_profit = Column(Numeric(10, 2))  # 止盈价
     notes = Column(Text)  # 备注
+    prev_close_price = Column(Numeric(10, 2))  # 昨收价
+    user_id = Column(Integer, nullable=False, default=1)  # 用户ID
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -69,6 +71,10 @@ class Strategy(Base):
     max_drawdown = Column(Numeric(8, 4))  # 最大回撤
     sharpe_ratio = Column(Numeric(6, 4))  # 夏普比率
     risk_level = Column(String(20))  # 风险等级
+    user_id = Column(Integer, nullable=False, default=1)  # 用户ID
+    recalc_status = Column(String(20), nullable=False, default="clean")  # 重算状态
+    recalc_retry_count = Column(Integer, nullable=False, default=0)  # 重试次数
+    last_error = Column(Text)  # 最后错误
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -99,6 +105,7 @@ class Transaction(Base):
     fee = Column(Numeric(10, 2))  # 手续费
     transaction_date = Column(Date, nullable=False)  # 交易日期
     notes = Column(Text)  # 备注
+    user_id = Column(Integer, nullable=False, default=1)  # 用户ID
     created_at = Column(DateTime, default=datetime.now)
 
     # 关系
@@ -129,6 +136,42 @@ class RiskMetric(Base):
 
     def __repr__(self):
         return f"<RiskMetric(id={self.id}, risk_score={self.risk_score})>"
+
+
+class TransactionAuditLog(Base):
+    """交易记录审计日志表"""
+
+    __tablename__ = "transaction_audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
+    field_name = Column(String(50), nullable=False)
+    old_value = Column(Text)
+    new_value = Column(Text, nullable=False)
+    change_reason = Column(Text, nullable=False)
+    changed_at = Column(DateTime, default=datetime.now)
+    changed_by = Column(Integer, nullable=False, default=1)
+
+    def __repr__(self):
+        return f"<TransactionAuditLog(id={self.id}, transaction_id={self.transaction_id}, field_name={self.field_name})>"
+
+
+class StrategyAuditLog(Base):
+    """策略审计日志表"""
+
+    __tablename__ = "strategy_audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"), nullable=False)
+    field_name = Column(String(50), nullable=False)
+    old_value = Column(Text)
+    new_value = Column(Text, nullable=False)
+    change_reason = Column(Text, nullable=False)
+    changed_at = Column(DateTime, default=datetime.now)
+    changed_by = Column(Integer, nullable=False, default=1)
+
+    def __repr__(self):
+        return f"<StrategyAuditLog(id={self.id}, strategy_id={self.strategy_id}, field_name={self.field_name})>"
 
 
 # 数据库初始化和辅助函数
