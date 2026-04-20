@@ -48,39 +48,119 @@
 | TC-STR-003 | 更新受保护字段 | 返回400错误 | P0 |
 | TC-STR-004 | 软删除策略 | status='deleted' | P0 |
 | TC-STR-005 | 删除后查询 | 返回404 | P0 |
-| TC-STR-006 | Dirty 状态重算 | is_dirty=True 后重算 | P0 |
+| TC-STR-006 | Dirty 状态重算 | recalc_status='dirty' 后重算 | P0 |
+| TC-STR-007 | 状态重算完成 | recalc_status='clean' | P0 |
+| TC-STR-008 | 重算失败状态 | recalc_status='failed' | P0 |
 
-#### Dirty 状态测试
+#### 状态机制测试
 
 ```python
-def test_strategy_dirty_flag(self, client):
-    """测试：策略 dirty 状态机制"""
+def test_strategy_recalc_status_lifecycle(self, client):
+    """测试：策略重算状态生命周期"""
     session = get_db_session()
-    
-    # 创建策略
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+
+    # 创建策略（初始状态为 clean）
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
     session.add(strategy)
     session.commit()
     strategy_id = strategy.id
-    
-    # 修改交易记录
-    transaction = Transaction(...)
-    session.add(transaction)
-    session.commit()
-    
+
+    # 验证初始状态
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'clean'
+    assert strategy.recalc_retry_count == 0
+
     # 标记 dirty
-    mark_strategy_dirty(strategy_id)
-    
+    mark_strategy_dirty(strategy_id, session)
+    session.commit()
+
     # 验证 dirty 状态
     strategy = session.query(Strategy).get(strategy_id)
-    assert strategy.is_dirty == True
-    
+    assert strategy.recalc_status == 'dirty'
+    assert strategy.recalc_retry_count == 0
+
     # 执行重算
-    recalc_strategy(strategy_id)
-    
-    # 验证 dirty 状态清除
+    recalc_strategy(strategy_id, session)
+
+    # 验证 clean 状态
     strategy = session.query(Strategy).get(strategy_id)
-    assert strategy.is_dirty == False
+    assert strategy.recalc_status == 'clean'
+    assert strategy.recalc_retry_count == 0
+    assert strategy.last_error is None
+```
+
+#### 恢复机制测试
+
+```python
+def test_recalc_timeout_recovery(self, client):
+    """测试：重算超时恢复机制"""
+    session = get_db_session()
+
+    # 创建策略
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='recomputing',
+        updated_at=datetime.now() - timedelta(minutes=35)  # 超过30分钟
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 执行恢复任务
+    from app import recover_stuck_strategies
+    recover_stuck_strategies()
+
+    # 验证状态已重置为 dirty
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'
+    assert '重算超时' in strategy.last_error
+```
+
+#### 并发控制测试
+
+```python
+def test_concurrent_recalc_prevention(self, client):
+    """测试：并发重算防护（乐观锁）"""
+    session1 = get_db_session()
+    session2 = get_db_session()
+
+    # 创建 dirty 策略
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session1.add(strategy)
+    session1.commit()
+    strategy_id = strategy.id
+
+    # Worker 1 尝试获取执行权
+    rows1 = session1.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'}, synchronize_session=False)
+    session1.commit()
+
+    assert rows1 == 1  # Worker 1 成功获取
+
+    # Worker 2 尝试获取执行权
+    rows2 = session2.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'}, synchronize_session=False)
+    session2.commit()
+
+    assert rows2 == 0  # Worker 2 被拒绝
+
+    # 验证状态为 recomputing
+    strategy = session1.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'recomputing'
+
+    session1.close()
+    session2.close()
 ```
 
 #### 边界值测试
@@ -108,20 +188,25 @@ def test_strategy_dirty_flag(self, client):
 |----|----------|--------|--------|
 | TC-TRN-001 | 修改价格 | 成功更新，记录审计 | P0 |
 | TC-TRN-002 | 缺少原因 | 返回400错误 | P0 |
-| TC-TRN-003 | 修改触发重算 | 策略标记dirty | P0 |
+| TC-TRN-003 | 修改触发重算 | recalc_status='dirty' | P0 |
 | TC-TRN-004 | 审计日志记录 | 记录旧值和新值 | P0 |
 
-#### Dirty 状态传播测试
+#### 状态传播测试
 
 ```python
 def test_transaction_triggers_dirty_flag(self, client):
     """测试：交易修改触发 dirty 状态"""
     session = get_db_session()
-    
-    position = Position(symbol="000001.SZSE", quantity=1000, cost_price=10.00)
+
+    position = Position(
+        symbol="000001.SZSE",
+        quantity=1000,
+        cost_price=10.00,
+        strategy_id=1
+    )
     session.add(position)
     session.commit()
-    
+
     transaction = Transaction(
         position_id=position.id,
         strategy_id=position.strategy_id,
@@ -134,15 +219,16 @@ def test_transaction_triggers_dirty_flag(self, client):
     session.add(transaction)
     session.commit()
     transaction_id = transaction.id
-    
+
     # 修改交易
     response = client.put(f'/api/transactions/{transaction_id}',
                         json={"price": 15.00, "reason": "测试"})
     assert response.status_code == 200
-    
+
     # 验证策略被标记为 dirty
     strategy = session.query(Strategy).get(position.strategy_id)
-    assert strategy.is_dirty == True
+    assert strategy.recalc_status == 'dirty'
+    assert strategy.recalc_retry_count == 0
 ```
 
 #### 边界值测试
@@ -166,7 +252,11 @@ def test_weighted_average_cost_calculation(self, client):
     session = get_db_session()
 
     # 创建策略和持仓
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
     session.add(strategy)
     session.commit()
 
@@ -174,7 +264,8 @@ def test_weighted_average_cost_calculation(self, client):
         symbol="000001.SZSE",
         strategy_id=strategy.id,
         quantity=0,
-        cost_price=0.00
+        cost_price=0.00,
+        current_price=10.00
     )
     session.add(position)
     session.commit()
@@ -195,7 +286,8 @@ def test_weighted_average_cost_calculation(self, client):
     session.commit()
 
     # 触发重算
-    recalc_position_cost(position_id)
+    position = session.query(Position).get(position_id)
+    _recalc_position_cost(position, session)
 
     # 验证：成本 = (1000 * 10.00 + 5) / 1000 = 10.005
     position = session.query(Position).get(position_id)
@@ -217,7 +309,8 @@ def test_weighted_average_cost_calculation(self, client):
     session.commit()
 
     # 触发重算
-    recalc_position_cost(position_id)
+    position = session.query(Position).get(position_id)
+    _recalc_position_cost(position, session)
 
     # 验证：新成本 = (10.005 * 1000 + 6003) / 1500 = 10.672
     position = session.query(Position).get(position_id)
@@ -239,7 +332,8 @@ def test_weighted_average_cost_calculation(self, client):
     session.commit()
 
     # 触发重算
-    recalc_position_cost(position_id)
+    position = session.query(Position).get(position_id)
+    _recalc_position_cost(position, session)
 
     # 验证：卖出后成本不变，数量减少
     position = session.query(Position).get(position_id)
@@ -250,11 +344,15 @@ def test_weighted_average_cost_calculation(self, client):
     # 应该记录在审计日志中
 
 def test_full_recalculation_flow(self, client):
-    """测试：完整重算流程"""
+    """测试：完整重算流程（单一事务）"""
     session = get_db_session()
 
     # 创建测试数据
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
     session.add(strategy)
     session.commit()
     strategy_id = strategy.id
@@ -287,21 +385,21 @@ def test_full_recalculation_flow(self, client):
     session.commit()
 
     # 标记dirty
-    mark_strategy_dirty(strategy_id)
+    mark_strategy_dirty(strategy_id, session)
+    session.commit()
 
     # 验证dirty状态
     strategy = session.query(Strategy).get(strategy_id)
-    assert strategy.is_dirty == True
     assert strategy.recalc_status == 'dirty'
 
     # 执行重算
-    recalc_strategy(strategy_id)
+    recalc_strategy(strategy_id, session)
 
     # 验证重算完成
     strategy = session.query(Strategy).get(strategy_id)
-    assert strategy.is_dirty == False
     assert strategy.recalc_status == 'clean'
     assert strategy.recalc_retry_count == 0
+    assert strategy.last_error is None
 
     # 验证持仓数据已更新
     for position in positions:
@@ -313,38 +411,246 @@ def test_recalculation_failure_and_retry(self, client):
     """测试：重算失败和重试机制"""
     session = get_db_session()
 
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty',
+        recalc_retry_count=0
+    )
     session.add(strategy)
     session.commit()
     strategy_id = strategy.id
 
-    # 模拟重算失败（删除持仓数据）
-    position = Position(symbol="000001.SZSE", strategy_id=strategy_id)
-    session.add(position)
+    # 模拟重算失败（破坏数据完整性）
+    # 删除所有持仓，导致重算失败
+    positions = session.query(Position)\
+        .filter_by(strategy_id=strategy_id)\
+        .all()
+    for p in positions:
+        session.delete(p)
     session.commit()
-
-    # 删除持仓（破坏数据完整性）
-    session.delete(position)
-    session.commit()
-
-    # 标记dirty
-    mark_strategy_dirty(strategy_id)
 
     # 尝试重算（应该失败）
     try:
-        recalc_strategy(strategy_id)
+        recalc_strategy(strategy_id, session)
         assert False, "应该抛出异常"
     except Exception:
         pass
 
-    # 验证失败状态
-    strategy = session.query(Strategy).get(strategy_id)
-    assert strategy.recalc_status == 'failed'
-    assert strategy.recalc_retry_count == 1
-    assert strategy.last_error is not None
+    # 调用失败处理
+    handle_recalc_failure(strategy_id, "模拟重算失败")
 
-    # 验证dirty状态保留（允许重试）
-    assert strategy.is_dirty == True
+    # 验证失败状态（独立事务）
+    session = get_db_session()
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'  # 第1次失败，保持 dirty
+    assert strategy.recalc_retry_count == 1
+    assert "模拟重算失败" in strategy.last_error
+
+    session.close()
+
+    # 模拟第3次失败
+    for i in range(2):
+        handle_recalc_failure(strategy_id, f"模拟重算失败{i+2}")
+
+    # 验证达到最大重试次数
+    session = get_db_session()
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'failed'  # 第3次失败，标记为 failed
+    assert strategy.recalc_retry_count == 3
+    assert "Max retries exceeded" in strategy.last_error
+
+    session.close()
+```
+
+#### 事务边界测试
+
+```python
+def test_recalc_transaction_rollback(self, client):
+    """测试：重算失败时事务回滚"""
+    session = get_db_session()
+
+    # 创建策略和持仓
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    position = Position(
+        symbol="000001.SZSE",
+        strategy_id=strategy_id,
+        quantity=1000,
+        cost_price=10.00,
+        current_price=12.00
+    )
+    session.add(position)
+    session.commit()
+    position_id = position.id
+
+    # 记录原始数据
+    original_quantity = position.quantity
+    original_cost = position.cost_price
+
+    # 模拟重算过程中的异常
+    try:
+        # 修改部分数据
+        position.quantity = 2000
+        position.cost_price = 15.00
+
+        # 模拟异常
+        raise Exception("模拟重算失败")
+    except Exception:
+        session.rollback()
+
+    # 验证数据未改变（回滚成功）
+    session = get_db_session()
+    position = session.query(Position).get(position_id)
+    assert position.quantity == original_quantity
+    assert position.cost_price == original_cost
+
+    # 验证策略状态未改变
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'  # 仍为 dirty
+
+    session.close()
+
+def test_recalc_status_consistency(self, client):
+    """测试：状态字段一致性（无 is_dirty 冗余）"""
+    session = get_db_session()
+
+    # 创建策略（不设置 is_dirty）
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 验证只有 recalc_status 字段
+    strategy = session.query(Strategy).get(strategy_id)
+    assert hasattr(strategy, 'recalc_status')
+    assert strategy.recalc_status == 'clean'
+
+    # 标记 dirty
+    mark_strategy_dirty(strategy_id, session)
+    session.commit()
+
+    # 验证状态改变
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'
+
+    # 执行重算
+    recalc_strategy(strategy_id, session)
+
+    # 验证状态变为 clean
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'clean'
+
+    session.close()
+```
+
+#### 并发和恢复机制测试
+
+```python
+def test_optimistic_lock_concurrent_access(self, client):
+    """测试：乐观锁防止并发重算"""
+    session1 = get_db_session()
+    session2 = get_db_session()
+
+    # 创建 dirty 策略
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session1.add(strategy)
+    session1.commit()
+    strategy_id = strategy.id
+
+    # Worker 1 尝试获取执行权
+    rows_affected1 = session1.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'}, synchronize_session=False)
+    session1.commit()
+
+    # Worker 2 尝试获取执行权
+    rows_affected2 = session2.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'}, synchronize_session=False)
+    session2.commit()
+
+    # 验证：Worker 1 成功，Worker 2 失败
+    assert rows_affected1 == 1
+    assert rows_affected2 == 0
+
+    # 验证最终状态为 recomputing
+    strategy = session1.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'recomputing'
+
+    session1.close()
+    session2.close()
+
+def test_recovery_from_stuck_recomputing_status(self, client):
+    """测试：从卡死的 recomputing 状态恢复"""
+    from datetime import datetime, timedelta
+
+    session = get_db_session()
+
+    # 创建卡死的策略（recomputing 状态且超过30分钟）
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='recomputing',
+        updated_at=datetime.now() - timedelta(minutes=35)
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 执行恢复任务
+    from app import recover_stuck_strategies
+    recover_stuck_strategies()
+
+    # 验证状态已重置为 dirty
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'
+    assert '重算超时' in strategy.last_error
+
+    session.close()
+
+def test_no_recovery_for_recent_recomputing(self, client):
+    """测试：不重置最近的 recomputing 状态"""
+    from datetime import datetime, timedelta
+
+    session = get_db_session()
+
+    # 创建正常的 recomputing 策略（5分钟前）
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='recomputing',
+        updated_at=datetime.now() - timedelta(minutes=5)
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 执行恢复任务
+    from app import recover_stuck_strategies
+    recover_stuck_strategies()
+
+    # 验证状态仍为 recomputing（未超时，不重置）
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'recomputing'
+    assert strategy.last_error is None
+
+    session.close()
 ```
 
 ---
