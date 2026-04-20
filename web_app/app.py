@@ -428,6 +428,12 @@ def compare_strategies():
         return jsonify({"success": False, "error": str(e)})
 
 
+@app.route("/position_management")
+def position_management():
+    """持仓管理页面"""
+    return render_template("position_overview.html")
+
+
 if __name__ == "__main__":
     # 创建模板目录
     template_dir = Path(__file__).parent / "templates"
