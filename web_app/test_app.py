@@ -26,15 +26,13 @@ app.register_blueprint(strategy_bp)
 app.register_blueprint(analytics_bp)
 
 
-# 添加持仓管理页面路由（简单返回用于测试）
+# 添加持仓管理页面路由
 @app.route("/position_management")
 def position_management():
-    return """
-    <!DOCTYPE html>
-    <html><head><title>持仓管理</title></head>
-    <body><h1>持仓概览 - vn.py量化交易平台</h1></body>
-    </html>
-    """
+    # 渲染完整的前端页面
+    from flask import render_template
+
+    return render_template("position_overview.html")
 
 
 @app.route("/")
