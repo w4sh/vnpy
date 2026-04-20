@@ -228,6 +228,10 @@ def get_strategy_positions(strategy_id):
         if not strategy:
             return jsonify({"error": "策略不存在"}), 404
 
+        # 过滤已删除的策略
+        if strategy.status == "deleted":
+            return jsonify({"error": "策略不存在"}), 404
+
         positions = (
             session.query(Position)
             .filter_by(strategy_id=strategy_id, status="holding")
@@ -255,5 +259,54 @@ def get_strategy_positions(strategy_id):
     except Exception as e:
         logger.error(f"获取策略{strategy_id}持仓失败: {e}")
         return jsonify({"error": f"获取失败: {str(e)}"}), 500
+    finally:
+        session.close()
+
+
+@strategy_bp.route("/api/strategies/<int:strategy_id>/restore", methods=["POST"])
+def restore_strategy(strategy_id):
+    """恢复已删除的策略
+    
+    将status从'deleted'改回'active'
+    """
+    session = get_db_session()
+    try:
+        strategy = session.query(Strategy).get(strategy_id)
+        if not strategy:
+            return jsonify({"error": "策略不存在"}), 404
+        
+        # 只能恢复已删除的策略
+        if strategy.status != "deleted":
+            return jsonify({"error": "只能恢复已删除的策略"}), 400
+        
+        reason = request.args.get("reason", "用户恢复")
+        
+        # 记录审计日志
+        audit_log = StrategyAuditLog(
+            strategy_id=strategy_id,
+            field_name="status",
+            old_value="deleted",
+            new_value="active",
+            change_reason=reason,
+            changed_at=datetime.now(),
+        )
+        session.add(audit_log)
+        
+        # 恢复策略
+        strategy.status = "active"
+        strategy.updated_at = datetime.now()
+        session.commit()
+        
+        logger.info(f"策略{strategy_id}已恢复")
+        
+        return jsonify({
+            "id": strategy_id,
+            "status": "active",
+            "message": "策略已恢复"
+        })
+    except Exception as e:
+        session.rollback()
+        logger.error(f"恢复策略{strategy_id}失败: {e}")
+        return jsonify({"error": f"恢复失败: {str(e)}"}), 500
     finally:
         session.close()

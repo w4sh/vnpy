@@ -75,7 +75,7 @@ class Strategy(Base):
     recalc_retry_count = Column(Integer, nullable=False, default=0)  # 重试次数
     last_error = Column(Text)  # 最后错误
     status = Column(
-        String(20), nullable=False, default="active"
+        String(20), nullable=False, default="active", index=True
     )  # 状态: active/deleted
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

@@ -116,6 +116,10 @@ def get_strategy_analytics(strategy_id):
             if not strategy:
                 return jsonify({"success": False, "error": "策略不存在"}), 404
 
+            # 过滤已删除的策略
+            if strategy.status == "deleted":
+                return jsonify({"success": False, "error": "策略不存在"}), 404
+
             positions = [p for p in strategy.positions if p.status == "holding"]
 
             if not positions:
@@ -187,7 +191,12 @@ def compare_strategies():
     try:
         session = get_db_session()
         try:
-            strategies = session.query(Strategy).all()
+            strategies = (
+                session.query(Strategy)
+                .filter_by(status="active")
+                .order_by(Strategy.created_at.desc())
+                .all()
+            )
 
             comparison = []
             for strategy in strategies:

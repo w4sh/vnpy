@@ -230,7 +230,10 @@ def get_strategies():
         session = get_db_session()
         try:
             strategies = (
-                session.query(Strategy).order_by(Strategy.created_at.desc()).all()
+                session.query(Strategy)
+                .filter_by(status="active")
+                .order_by(Strategy.created_at.desc())
+                .all()
             )
 
             result = []
