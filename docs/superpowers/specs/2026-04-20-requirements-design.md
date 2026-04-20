@@ -150,6 +150,20 @@
 **业务规则：**
 - 修改后自动重新计算持仓的市值和盈亏
 - 修改后更新策略的资金状况
+- **标记策略为 dirty 状态**，触发异步重算任务
+- 重算任务修复所有衍生数据（净值曲线、收益率等）
+
+**修改约束（推荐方案）：**
+- 允许修改历史交易（不限制时间范围）
+- 但系统将标记对应 strategy 为 dirty 状态
+- dirty 策略的数据可能暂时不准确
+- 后续通过后台重算任务自动修复所有衍生数据
+- 前端显示 dirty 状态提示（如"数据更新中..."）
+
+**数据一致性保证：**
+- 交易修改 → 触发重算 → 标记 dirty → 后台任务修复 → 清除 dirty 状态
+- 重算期间可以正常查询，但数据可能暂时是旧值
+- 重算完成后自动更新为最新值
 
 ---
 
@@ -240,12 +254,73 @@
 
 ### 4.4 图表配置功能
 
-#### FR-8: 图表配置页面
+#### FR-8: 图表配置数据结构规范
 
-**需求描述：** 用户可以自定义仪表盘的图表配置
+**需求描述：** 图表配置采用统一的 JSON Schema，前后端严格遵循同一规范
 
 **用户故事：**
 > 作为量化投资者，我希望能够自定义仪表盘显示哪些图表，以便只关注我关心的指标
+
+**数据结构规范：**
+
+```json
+{
+  "version": "1.0",
+  "cards": ["total_assets", "total_profit_loss", "today_profit_loss", "position_count"],
+  "layout": {
+    "top_cards": ["total_assets", "total_profit_loss", "today_profit_loss", "position_count"],
+    "core_charts": ["position_distribution", "nav_curve", "strategy_comparison"],
+    "advanced_charts": ["profit_waterfall", "concentration_curve", "industry_distribution"],
+    "advanced_collapsed": false
+  },
+  "charts": [
+    {
+      "id": "position_distribution",
+      "type": "pie",
+      "metric": "distribution",
+      "title": "持仓分布",
+      "enabled": true,
+      "options": {
+        "dataSource": "/api/analytics/portfolio/distribution",
+        "labelField": "name",
+        "valueField": "market_value",
+        "showPercentage": true
+      }
+    },
+    {
+      "id": "nav_curve",
+      "type": "line",
+      "metric": "nav",
+      "title": "净值收益曲线",
+      "enabled": true,
+      "options": {
+        "dataSource": "/api/analytics/history/nav",
+        "range": "30d",
+        "showBaseline": true,
+        "zoomable": true
+      }
+    }
+  ]
+}
+```
+
+**Schema 要求：**
+- `version`：配置版本号，用于向后兼容检测
+- `cards`：启用的指标卡片 ID 数组
+- `charts`：图表配置数组
+  - `id`：唯一标识符
+  - `type`：图表类型（pie/line/bar/waterfall 等）
+  - `metric`：指标类型
+  - `enabled`：是否启用
+  - `options`：图表特定选项
+
+**向后兼容：**
+- 所有配置变更必须保证向后兼容
+- 新增字段需有默认值
+- version 字段用于检测配置格式变更
+- 不支持的配置项应优雅降级
+
+#### FR-9: 图表配置页面
 
 **功能规格：**
 
@@ -317,7 +392,22 @@
 
 **认证与授权：**
 - 当前阶段：单用户模式
-- 未来预留：多用户支持（user_id 字段）
+- **未来预留：多用户支持（所有核心表预留 user_id 字段）**
+
+**多用户扩展要求：**
+- positions 表预留 user_id 字段
+- strategies 表预留 user_id 字段
+- transactions 表预留 user_id 字段
+- analytics 相关表预留 user_id 字段
+- chart_configs 表已包含 user_id 字段
+- chart_templates 表无需 user_id（系统级共享）
+
+**user_id 字段规范：**
+- 字段类型：INTEGER NOT NULL
+- 默认值：1（当前用户）
+- 不允许为 NULL
+- 外键关联到 users 表（未来）
+- 所有查询自动过滤当前用户数据
 
 **数据安全：**
 - SQL 注入防护
@@ -374,7 +464,31 @@
 
 ## 6. 数据需求
 
-### 6.1 数据存储需求
+### 6.1 数据一致性模型
+
+为确保系统在交易修改、策略更新等操作后的数据一致性，定义如下原则：
+
+**冗余存储 + 衍生更新模式：**
+- 持仓数据（positions）、策略指标（strategies）采用冗余存储 + 衍生更新模式
+- 不采用纯实时计算（性能考虑）
+- 所有影响持仓的数据变更必须触发数据重算流程
+
+**数据重算范围：**
+- 默认：仅影响对应的 strategy_id
+- 重算内容包括：
+  - 持仓数量
+  - 市值（market_value）
+  - 总资产（total_assets）
+  - 盈亏（profit_loss, profit_loss_pct）
+  - 策略净值曲线
+
+**重算触发时机：**
+- 交易记录创建/修改/删除
+- 持仓创建/修改/删除
+- 价格更新（手动触发）
+- 策略资金调整
+
+### 6.2 数据存储需求
 
 **新增数据表：**
 1. `transaction_audit_log` - 交易审计日志
