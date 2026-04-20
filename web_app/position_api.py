@@ -443,6 +443,17 @@ def update_transaction(transaction_id):
         if not transaction:
             return jsonify({"error": "交易记录不存在"}), 404
 
+        # 检查关联策略状态（Task 3软删除一致性）
+        strategy = session.query(Strategy).get(transaction.strategy_id)
+        if not strategy or strategy.status == "deleted":
+            return jsonify({"error": "关联策略不存在或已删除"}), 400
+
+        # 检查关联持仓是否存在
+        if transaction.position_id:
+            position = session.query(Position).get(transaction.position_id)
+            if not position:
+                return jsonify({"error": "关联持仓不存在"}), 400
+
         data = request.get_json()
         if not data:
             return jsonify({"error": "请求体不能为空"}), 400

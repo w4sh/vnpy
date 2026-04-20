@@ -305,3 +305,55 @@ def test_get_transaction_audit_log(app, db_session_factory):
 
     finally:
         session.close()
+
+
+def test_update_transaction_deleted_strategy(app, db_session_factory):
+    """测试:不能修改已删除策略的交易记录"""
+    session = db_session_factory()
+    try:
+        strategy = Strategy(name="测试", initial_capital=1000000, status="deleted")
+        session.add(strategy)
+        session.flush()
+
+        position = Position(
+            symbol="000001.SZSE",
+            quantity=1000,
+            cost_price=10.00,
+            strategy_id=strategy.id,
+        )
+        session.add(position)
+        session.flush()
+
+        transaction = Transaction(
+            position_id=position.id,
+            strategy_id=strategy.id,
+            transaction_type="buy",
+            symbol="000001.SZSE",
+            quantity=1000,
+            price=10.00,
+            amount=10000,
+            transaction_date=date.today(),
+        )
+        session.add(transaction)
+        session.commit()
+
+        # Monkey patch get_db_session
+        import web_app.position_api as position_api_module
+
+        original_get_db_session = position_api_module.get_db_session
+        position_api_module.get_db_session = lambda: session
+
+        try:
+            client = app.test_client()
+            response = client.put(
+                f"/api/transactions/{transaction.id}",
+                json={"price": 15.00, "reason": "测试修改"},
+            )
+
+            assert response.status_code == 400
+            assert "关联策略不存在或已删除" in response.get_json()["error"]
+        finally:
+            position_api_module.get_db_session = original_get_db_session
+
+    finally:
+        session.close()
