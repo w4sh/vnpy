@@ -27,3 +27,4 @@ __pycache__/
 
 # MCP 工具生成
 .playwright-mcp/
+.DS_Store

@@ -106,15 +106,21 @@ chart_configs, chart_templates
 
 ### 4.2 Dirty 状态机制
 
-**策略 dirty 状态：**
+**状态生命周期：**
+
+clean → dirty → recomputing → clean/failed
+
+**标记 dirty 状态：**
 
 ```python
-# 交易修改时标记 dirty
-def update_transaction(transaction_id, data):
-    # 更新交易
-    # 标记策略为 dirty
-    mark_strategy_dirty(strategy_id)
-    # 返回响应
+def mark_strategy_dirty(strategy_id):
+    """标记策略为 dirty 状态"""
+    strategy = session.query(Strategy).get(strategy_id)
+    if strategy:
+        strategy.is_dirty = True
+        strategy.recalc_status = 'dirty'
+        strategy.recalc_retry_count = 0
+        session.commit()
 ```
 
 **后台重算任务：**
@@ -125,10 +131,116 @@ def recalc_dirty_strategies():
     """每5分钟重算 dirty 策略"""
     dirty_strategies = session.query(Strategy)\
         .filter_by(is_dirty=True)\
+        .filter(Strategy.recalc_status != 'recomputing')\
         .all()
-    
+
     for strategy in dirty_strategies:
-        recalc_strategy(strategy.id)
+        try:
+            recalc_strategy(strategy.id)
+        except Exception as e:
+            handle_recalc_failure(strategy.id, str(e))
+```
+
+**重算函数实现：**
+
+```python
+def recalc_strategy(strategy_id):
+    """重算策略的所有衍生数据
+
+    采用全量重算策略，避免累计误差
+    """
+    session = get_db_session()
+
+    try:
+        # 1. 标记为重算中
+        strategy = session.query(Strategy).get(strategy_id)
+        strategy.recalc_status = 'recomputing'
+        session.commit()
+
+        # 2. 获取所有持仓
+        positions = session.query(Position)\
+            .filter_by(strategy_id=strategy_id, status='holding')\
+            .all()
+
+        # 3. 为每个持仓重新计算成本和数量
+        for position in positions:
+            recalc_position_cost(position.id)
+
+        # 4. 更新策略指标
+        total_market_value = sum(p.market_value for p in positions)
+        strategy.current_capital = total_market_value
+        strategy.total_return = (strategy.current_capital - strategy.initial_capital) / strategy.initial_capital
+
+        # 5. 清除 dirty 状态
+        strategy.is_dirty = False
+        strategy.recalc_status = 'clean'
+        session.commit()
+
+    except Exception as e:
+        # 重算失败，保留 dirty 状态
+        strategy.recalc_status = 'failed'
+        strategy.recalc_retry_count += 1
+        strategy.last_error = str(e)
+        session.commit()
+        raise
+
+def recalc_position_cost(position_id):
+    """重算持仓的成本和数量（加权平均成本法）"""
+    position = session.query(Position).get(position_id)
+
+    # 获取所有相关交易（按时间顺序）
+    transactions = session.query(Transaction)\
+        .filter_by(position_id=position_id)\
+        .order_by(Transaction.transaction_date)\
+        .all()
+
+    total_qty = 0
+    total_cost = 0.0
+
+    for txn in transactions:
+        if txn.transaction_type == 'buy':
+            # 买入：加权平均成本
+            # 新成本 = (原成本 × 原数量 + 新金额) / (原数量 + 新数量)
+            amount = txn.quantity * txn.price + txn.fee
+            new_qty = total_qty + txn.quantity
+            new_cost = (total_cost * total_qty + amount) / new_qty if new_qty > 0 else 0
+
+            total_qty = new_qty
+            total_cost = new_cost
+
+        elif txn.transaction_type == 'sell':
+            # 卖出：成本不变，实现盈亏
+            # 已实现盈亏 = (卖出价 - 成本价) × 卖出数量
+            sell_amount = txn.quantity * txn.price - txn.fee
+            cost_basis = total_cost * txn.quantity
+            realized_profit = sell_amount - cost_basis
+
+            total_qty -= txn.quantity
+            # 成本保持不变
+
+    # 更新持仓
+    position.quantity = total_qty
+    position.cost_price = total_cost
+    position.market_value = position.current_price * total_qty
+    position.profit_loss = position.market_value - (total_cost * total_qty)
+    position.profit_loss_pct = (position.profit_loss / (total_cost * total_qty)) * 100 if total_qty > 0 else 0
+
+    session.commit()
+
+def handle_recalc_failure(strategy_id, error_msg):
+    """处理重算失败"""
+    strategy = session.query(Strategy).get(strategy_id)
+
+    # 最多重试3次
+    if strategy.recalc_retry_count < 3:
+        strategy.recalc_status = 'dirty'
+        strategy.recalc_retry_count += 1
+        strategy.last_error = error_msg
+    else:
+        strategy.recalc_status = 'failed'
+        strategy.last_error = f"Max retries exceeded: {error_msg}"
+
+    session.commit()
 ```
 
 ---

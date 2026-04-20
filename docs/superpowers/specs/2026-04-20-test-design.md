@@ -156,7 +156,200 @@ def test_transaction_triggers_dirty_flag(self, client):
 
 ---
 
-### 2.3 分页功能测试
+### 2.3 持仓计算规则测试
+
+#### 加权平均成本法测试
+
+```python
+def test_weighted_average_cost_calculation(self, client):
+    """测试：加权平均成本法计算"""
+    session = get_db_session()
+
+    # 创建策略和持仓
+    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    session.add(strategy)
+    session.commit()
+
+    position = Position(
+        symbol="000001.SZSE",
+        strategy_id=strategy.id,
+        quantity=0,
+        cost_price=0.00
+    )
+    session.add(position)
+    session.commit()
+    position_id = position.id
+
+    # 第一次买入：1000股 @ 10.00
+    txn1 = Transaction(
+        position_id=position_id,
+        strategy_id=strategy.id,
+        transaction_type="buy",
+        symbol="000001.SZSE",
+        quantity=1000,
+        price=10.00,
+        fee=5.0,
+        amount=10005
+    )
+    session.add(txn1)
+    session.commit()
+
+    # 触发重算
+    recalc_position_cost(position_id)
+
+    # 验证：成本 = (1000 * 10.00 + 5) / 1000 = 10.005
+    position = session.query(Position).get(position_id)
+    assert position.quantity == 1000
+    assert abs(position.cost_price - 10.005) < 0.001
+
+    # 第二次买入：500股 @ 12.00
+    txn2 = Transaction(
+        position_id=position_id,
+        strategy_id=strategy.id,
+        transaction_type="buy",
+        symbol="000001.SZSE",
+        quantity=500,
+        price=12.00,
+        fee=3.0,
+        amount=6003
+    )
+    session.add(txn2)
+    session.commit()
+
+    # 触发重算
+    recalc_position_cost(position_id)
+
+    # 验证：新成本 = (10.005 * 1000 + 6003) / 1500 = 10.672
+    position = session.query(Position).get(position_id)
+    assert position.quantity == 1500
+    assert abs(position.cost_price - 10.672) < 0.001
+
+    # 卖出：300股 @ 11.00
+    txn3 = Transaction(
+        position_id=position_id,
+        strategy_id=strategy.id,
+        transaction_type="sell",
+        symbol="000001.SZSE",
+        quantity=300,
+        price=11.00,
+        fee=3.0,
+        amount=3297
+    )
+    session.add(txn3)
+    session.commit()
+
+    # 触发重算
+    recalc_position_cost(position_id)
+
+    # 验证：卖出后成本不变，数量减少
+    position = session.query(Position).get(position_id)
+    assert position.quantity == 1200
+    assert abs(position.cost_price - 10.672) < 0.001  # 成本不变
+
+    # 验证已实现盈亏 = (11.00 - 10.672) * 300 - 3 = 95.4
+    # 应该记录在审计日志中
+
+def test_full_recalculation_flow(self, client):
+    """测试：完整重算流程"""
+    session = get_db_session()
+
+    # 创建测试数据
+    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 创建多个持仓和交易
+    positions = []
+    for i in range(3):
+        position = Position(
+            symbol=f"00000{i+1}.SZSE",
+            strategy_id=strategy_id,
+            quantity=1000 * (i+1),
+            cost_price=10.00 + i,
+            current_price=12.00 + i
+        )
+        session.add(position)
+        positions.append(position)
+    session.commit()
+
+    # 修改交易触发dirty
+    transaction = Transaction(
+        position_id=positions[0].id,
+        strategy_id=strategy_id,
+        transaction_type="buy",
+        symbol="000001.SZSE",
+        quantity=500,
+        price=15.00,
+        amount=7500
+    )
+    session.add(transaction)
+    session.commit()
+
+    # 标记dirty
+    mark_strategy_dirty(strategy_id)
+
+    # 验证dirty状态
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.is_dirty == True
+    assert strategy.recalc_status == 'dirty'
+
+    # 执行重算
+    recalc_strategy(strategy_id)
+
+    # 验证重算完成
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.is_dirty == False
+    assert strategy.recalc_status == 'clean'
+    assert strategy.recalc_retry_count == 0
+
+    # 验证持仓数据已更新
+    for position in positions:
+        position = session.query(Position).get(position.id)
+        assert position.market_value == position.current_price * position.quantity
+        assert position.profit_loss_pct > 0
+
+def test_recalculation_failure_and_retry(self, client):
+    """测试：重算失败和重试机制"""
+    session = get_db_session()
+
+    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 模拟重算失败（删除持仓数据）
+    position = Position(symbol="000001.SZSE", strategy_id=strategy_id)
+    session.add(position)
+    session.commit()
+
+    # 删除持仓（破坏数据完整性）
+    session.delete(position)
+    session.commit()
+
+    # 标记dirty
+    mark_strategy_dirty(strategy_id)
+
+    # 尝试重算（应该失败）
+    try:
+        recalc_strategy(strategy_id)
+        assert False, "应该抛出异常"
+    except Exception:
+        pass
+
+    # 验证失败状态
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'failed'
+    assert strategy.recalc_retry_count == 1
+    assert strategy.last_error is not None
+
+    # 验证dirty状态保留（允许重试）
+    assert strategy.is_dirty == True
+```
+
+---
+
+### 2.4 分页功能测试
 
 | ID | 测试场景 | 验证点 | 优先级 |
 |----|----------|--------|--------|
