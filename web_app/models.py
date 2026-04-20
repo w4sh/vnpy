@@ -14,7 +14,6 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
-    DECIMAL,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -51,7 +50,7 @@ class Position(Base):
     strategy = relationship("Strategy", back_populates="positions")
     transactions = relationship("Transaction", back_populates="position")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<Position(id={self.id}, symbol={self.symbol}, quantity={self.quantity})>"
         )
@@ -83,7 +82,7 @@ class Strategy(Base):
     transactions = relationship("Transaction", back_populates="strategy")
     risk_metrics = relationship("RiskMetric", back_populates="strategy")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Strategy(id={self.id}, name={self.name})>"
 
 
@@ -112,7 +111,7 @@ class Transaction(Base):
     position = relationship("Position", back_populates="transactions")
     strategy = relationship("Strategy", back_populates="transactions")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Transaction(id={self.id}, type={self.transaction_type}, symbol={self.symbol})>"
 
 
@@ -134,7 +133,7 @@ class RiskMetric(Base):
     # 关系
     strategy = relationship("Strategy", back_populates="risk_metrics")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<RiskMetric(id={self.id}, risk_score={self.risk_score})>"
 
 
@@ -152,7 +151,7 @@ class TransactionAuditLog(Base):
     changed_at = Column(DateTime, default=datetime.now)
     changed_by = Column(Integer, nullable=False, default=1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<TransactionAuditLog(id={self.id}, transaction_id={self.transaction_id}, field_name={self.field_name})>"
 
 
@@ -170,12 +169,29 @@ class StrategyAuditLog(Base):
     changed_at = Column(DateTime, default=datetime.now)
     changed_by = Column(Integer, nullable=False, default=1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<StrategyAuditLog(id={self.id}, strategy_id={self.strategy_id}, field_name={self.field_name})>"
 
 
+class DailyProfitLoss(Base):
+    """每日盈亏快照表"""
+
+    __tablename__ = "daily_profit_loss"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    record_date = Column(Date, nullable=False)
+    position_id = Column(Integer, ForeignKey("positions.id"), nullable=False)
+    symbol = Column(String(20))
+    prev_close_price = Column(Numeric(10, 2))
+    current_price = Column(Numeric(10, 2))
+    daily_profit_loss = Column(Numeric(15, 2))
+
+    def __repr__(self) -> str:
+        return f"<DailyProfitLoss(id={self.id}, record_date={self.record_date}, position_id={self.position_id})>"
+
+
 # 数据库初始化和辅助函数
-def init_database(db_url="sqlite:///position_management.db"):
+def init_database(db_url: str = "sqlite:///position_management.db") -> Session:
     """初始化数据库"""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker

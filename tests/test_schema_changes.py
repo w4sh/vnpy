@@ -8,8 +8,7 @@ from web_app.models import (
     Strategy,
     Position,
     Transaction,
-    TransactionAuditLog,
-    StrategyAuditLog,
+    DailyProfitLoss,
     Base,
 )
 from sqlalchemy import create_engine
@@ -106,6 +105,7 @@ def test_audit_log_tables(db_session):
 
     assert "transaction_audit_log" in tables
     assert "strategy_audit_log" in tables
+    assert "daily_profit_loss" in tables
 
     # 验证字段
     transaction_audit_columns = [
@@ -116,3 +116,51 @@ def test_audit_log_tables(db_session):
     assert "old_value" in transaction_audit_columns
     assert "new_value" in transaction_audit_columns
     assert "change_reason" in transaction_audit_columns
+
+
+def test_daily_profit_loss_table(db_session):
+    """测试：每日盈亏快照表创建成功"""
+    from datetime import date
+    from sqlalchemy import inspect
+
+    # 创建测试数据
+    strategy = Strategy(name="测试", initial_capital=1000000)
+    db_session.add(strategy)
+    db_session.commit()
+
+    position = Position(
+        symbol="000001.SZSE",
+        quantity=1000,
+        cost_price=10.00,
+        strategy_id=strategy.id,
+    )
+    db_session.add(position)
+    db_session.commit()
+
+    daily_pl = DailyProfitLoss(
+        record_date=date.today(),
+        position_id=position.id,
+        symbol="000001.SZSE",
+        prev_close_price=9.50,
+        current_price=10.00,
+        daily_profit_loss=500.00,
+    )
+    db_session.add(daily_pl)
+    db_session.commit()
+
+    # 验证数据
+    assert daily_pl.id is not None
+    assert daily_pl.symbol == "000001.SZSE"
+    assert daily_pl.daily_profit_loss == 500.00
+
+    # 验证表结构
+    inspector = inspect(db_session.bind)
+    daily_pl_columns = [
+        col["name"] for col in inspector.get_columns("daily_profit_loss")
+    ]
+    assert "record_date" in daily_pl_columns
+    assert "position_id" in daily_pl_columns
+    assert "symbol" in daily_pl_columns
+    assert "prev_close_price" in daily_pl_columns
+    assert "current_price" in daily_pl_columns
+    assert "daily_profit_loss" in daily_pl_columns
