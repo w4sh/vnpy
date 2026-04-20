@@ -60,6 +60,7 @@ ALTER TABLE strategies ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE strategies ADD COLUMN recalc_status VARCHAR(20) NOT NULL DEFAULT 'clean';
 ALTER TABLE strategies ADD COLUMN recalc_retry_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE strategies ADD COLUMN last_error TEXT;
+ALTER TABLE strategies ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
 ```
 
 **recalc_status 字段规范：**
@@ -69,6 +70,7 @@ ALTER TABLE strategies ADD COLUMN last_error TEXT;
 - 替代原 is_dirty 字段，统一状态管理
 - recalc_retry_count：重试次数计数器
 - last_error：最后一次失败原因
+- updated_at：最后更新时间（用于恢复机制检测超时）
 
 **transactions 表新增字段：**
 
@@ -155,16 +157,32 @@ def mark_strategy_dirty(strategy_id, session):
         # 不在此 commit，由调用方统一提交
 ```
 
-**后台重算任务（使用乐观锁）：**
+**后台重算任务（使用乐观锁 + 恢复机制）：**
 
 ```python
 @scheduler.scheduled_job('interval', minutes=5)
 def recalc_dirty_strategies():
-    """每5分钟重算 dirty 策略"""
+    """每5分钟重算 dirty 策略
+
+    恢复机制：检测并清理卡死的 recomputing 状态
+    """
     session = get_db_session()
 
     try:
-        # 使用乐观锁获取待重算策略
+        # 1. 恢复机制：清理超时的 recomputing 状态
+        timeout_threshold = datetime.now() - timedelta(minutes=30)
+        stuck_strategies = session.query(Strategy)\
+            .filter_by(recalc_status='recomputing')\
+            .filter(Strategy.updated_at < timeout_threshold)\
+            .all()
+
+        for strategy in stuck_strategies:
+            # 重置为 dirty，允许重新执行
+            strategy.recalc_status = 'dirty'
+            strategy.last_error = '重算超时，已自动重置'
+        session.commit()
+
+        # 2. 使用乐观锁获取待重算策略
         dirty_strategies = session.query(Strategy)\
             .filter_by(recalc_status='dirty')\
             .all()
@@ -185,10 +203,21 @@ def recalc_dirty_strategies():
                 # 执行重算（传入同一 session）
                 recalc_strategy(strategy.id, session)
             except Exception as e:
-                handle_recalc_failure(strategy.id, str(e), session)
+                # 独立事务处理失败（不使用外层 session）
+                handle_recalc_failure(strategy.id, str(e))
     finally:
         session.close()
 ```
+
+**事务原子性保证：**
+
+为避免"状态已更新但计算未执行"的中间态，系统采用以下机制：
+
+1. **恢复机制**：后台任务定期检测超时的 `recomputing` 状态（30分钟），自动重置为 `dirty`
+2. **监控告警**：检测到长时间卡在 `recomputing` 状态时发送告警
+3. **手动干预**：提供管理接口手动重置卡死状态
+
+**注意**：抢占执行权（dirty → recomputing）与重算过程在不同事务中，存在进程崩溃的风险，通过恢复机制保证系统最终一致性。
 
 **重算函数实现（单一事务）：**
 
@@ -285,27 +314,35 @@ def _recalc_position_cost(position, session):
 
     # 注意：不在此 commit，由外层 recalc_strategy 统一提交
 
-def handle_recalc_failure(strategy_id, error_msg, session):
-    """处理重算失败
+def handle_recalc_failure(strategy_id, error_msg):
+    """处理重算失败（独立事务）
 
     根据重试次数决定状态：
     - 重试次数 < 3：状态保持 dirty，允许后台任务继续重试
     - 重试次数 >= 3：状态改为 failed，停止自动重试
 
-    必须在调用方的事务中执行
+    事务语义：本函数负责创建独立 session 并提交事务，不依赖调用方
     """
-    strategy = session.query(Strategy).get(strategy_id)
+    session = get_db_session()
 
-    if strategy.recalc_retry_count >= 3:
-        # 已达到最大重试次数，标记为 failed
-        strategy.recalc_status = 'failed'
-        strategy.last_error = f"Max retries exceeded: {error_msg}"
-    else:
-        # 保持 dirty 状态，等待下次重试
-        strategy.recalc_status = 'dirty'
-        strategy.last_error = error_msg
+    try:
+        strategy = session.query(Strategy).get(strategy_id)
 
-    session.commit()
+        if strategy.recalc_retry_count >= 3:
+            # 已达到最大重试次数，标记为 failed
+            strategy.recalc_status = 'failed'
+            strategy.last_error = f"Max retries exceeded: {error_msg}"
+        else:
+            # 保持 dirty 状态，等待下次重试
+            strategy.recalc_status = 'dirty'
+            strategy.last_error = error_msg
+
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Failed to handle recalc failure for strategy {strategy_id}: {e}")
+    finally:
+        session.close()
 ```
 
 **查询 API 状态处理：**
