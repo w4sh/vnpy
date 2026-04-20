@@ -35,6 +35,9 @@ from web_app.position_api import position_bp
 # 导入策略API蓝图
 from web_app.strategy_api import strategy_bp
 
+# 导入数据分析API蓝图
+from web_app.analytics_api import analytics_bp
+
 # 导入定时任务
 from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
 import atexit
@@ -46,6 +49,8 @@ app.config["JSON_AS_ASCII"] = False  # 支持中文
 app.register_blueprint(position_bp)
 # 注册策略管理蓝图
 app.register_blueprint(strategy_bp)
+# 注册数据分析蓝图
+app.register_blueprint(analytics_bp)
 
 # 初始化定时任务
 init_scheduler()

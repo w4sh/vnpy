@@ -6,7 +6,7 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
-from models import Position, Strategy, Transaction, get_db_session
+from web_app.models import Position, Strategy, Transaction, get_db_session
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import numpy as np
