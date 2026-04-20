@@ -57,8 +57,18 @@ ALTER TABLE positions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
 
 ```sql
 ALTER TABLE strategies ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE strategies ADD COLUMN is_dirty BOOLEAN DEFAULT 0;
+ALTER TABLE strategies ADD COLUMN recalc_status VARCHAR(20) NOT NULL DEFAULT 'clean';
+ALTER TABLE strategies ADD COLUMN recalc_retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE strategies ADD COLUMN last_error TEXT;
 ```
+
+**recalc_status 字段规范：**
+- 字段类型：VARCHAR(20) NOT NULL
+- 默认值：'clean'
+- 允许值：'clean', 'dirty', 'recomputing', 'failed'（应用层约束）
+- 替代原 is_dirty 字段，统一状态管理
+- recalc_retry_count：重试次数计数器
+- last_error：最后一次失败原因
 
 **transactions 表新增字段：**
 
@@ -124,90 +134,121 @@ clean / failed
 - `recomputing`：正在执行重算任务
 - `failed`：重算失败（连续失败3次），需要人工介入或等待自动重试
 
+**状态字段设计：**
+- 使用 `recalc_status` 作为唯一状态字段（枚举：clean/dirty/recomputing/failed）
+- 删除或废弃 `is_dirty` 字段，避免状态不一致
+- 所有状态判断基于 `recalc_status` 字段
+
 **标记 dirty 状态：**
 
 ```python
-def mark_strategy_dirty(strategy_id):
-    """标记策略为 dirty 状态"""
+def mark_strategy_dirty(strategy_id, session):
+    """标记策略为 dirty 状态
+
+    必须在调用方的事务中执行，不在此函数内 commit
+    """
     strategy = session.query(Strategy).get(strategy_id)
-    if strategy:
-        strategy.is_dirty = True
+    if strategy and strategy.recalc_status == 'clean':
         strategy.recalc_status = 'dirty'
         strategy.recalc_retry_count = 0
-        session.commit()
+        strategy.last_error = None
+        # 不在此 commit，由调用方统一提交
 ```
 
-**后台重算任务：**
+**后台重算任务（使用乐观锁）：**
 
 ```python
 @scheduler.scheduled_job('interval', minutes=5)
 def recalc_dirty_strategies():
     """每5分钟重算 dirty 策略"""
-    dirty_strategies = session.query(Strategy)\
-        .filter_by(is_dirty=True)\
-        .filter(Strategy.recalc_status != 'recomputing')\
-        .all()
-
-    for strategy in dirty_strategies:
-        try:
-            recalc_strategy(strategy.id)
-        except Exception as e:
-            handle_recalc_failure(strategy.id, str(e))
-```
-
-**重算函数实现：**
-
-```python
-def recalc_strategy(strategy_id):
-    """重算策略的所有衍生数据
-
-    采用全量重算策略，避免累计误差
-    """
     session = get_db_session()
 
     try:
-        # 1. 标记为重算中
-        strategy = session.query(Strategy).get(strategy_id)
-        strategy.recalc_status = 'recomputing'
-        session.commit()
+        # 使用乐观锁获取待重算策略
+        dirty_strategies = session.query(Strategy)\
+            .filter_by(recalc_status='dirty')\
+            .all()
 
-        # 2. 获取所有持仓
+        for strategy in dirty_strategies:
+            # 尝试获取执行权（条件更新）
+            rows_affected = session.query(Strategy)\
+                .filter_by(id=strategy.id, recalc_status='dirty')\
+                .update({'recalc_status': 'recomputing'}, synchronize_session=False)
+
+            if rows_affected == 0:
+                # 已被其他 worker 抢占，跳过
+                continue
+
+            session.commit()
+
+            try:
+                # 执行重算（传入同一 session）
+                recalc_strategy(strategy.id, session)
+            except Exception as e:
+                handle_recalc_failure(strategy.id, str(e), session)
+    finally:
+        session.close()
+```
+
+**重算函数实现（单一事务）：**
+
+```python
+def recalc_strategy(strategy_id, session):
+    """重算策略的所有衍生数据
+
+    关键约束：
+    1. 整个重算过程必须在单一事务中完成
+    2. 所有数据库操作使用传入的 session，禁止函数内部创建新 session
+    3. 保证原子性：要么全部成功，要么全部回滚
+
+    采用全量重算策略，避免累计误差
+    """
+    try:
+        # 获取策略对象（已在事务中）
+        strategy = session.query(Strategy).get(strategy_id)
+        if not strategy:
+            raise ValueError(f"Strategy {strategy_id} not found")
+
+        # 获取所有持仓（在同一事务中）
         positions = session.query(Position)\
             .filter_by(strategy_id=strategy_id, status='holding')\
             .all()
 
-        # 3. 为每个持仓重新计算成本和数量
+        # 为每个持仓重新计算成本和数量（不单独 commit）
         for position in positions:
-            recalc_position_cost(position.id)
+            _recalc_position_cost(position, session)
 
-        # 4. 更新策略指标
+        # 更新策略指标
         total_market_value = sum(p.market_value for p in positions)
         strategy.current_capital = total_market_value
         strategy.total_return = (strategy.current_capital - strategy.initial_capital) / strategy.initial_capital
 
-        # 5. 清除 dirty 状态，标记为 clean
-        strategy.is_dirty = False
+        # 所有计算成功后，统一更新状态
         strategy.recalc_status = 'clean'
         strategy.recalc_retry_count = 0
         strategy.last_error = None
+
+        # 单一事务提交点
         session.commit()
 
     except Exception as e:
-        # 重算失败，状态变为 failed（终态）
-        strategy.recalc_status = 'failed'
-        strategy.recalc_retry_count += 1
-        strategy.last_error = str(e)
-        # is_dirty 保持 True，表示数据仍需重算
-        session.commit()
+        # 任何失败都回滚整个事务
+        session.rollback()
         raise
 
-def recalc_position_cost(position_id):
-    """重算持仓的成本和数量（加权平均成本法）"""
-    position = session.query(Position).get(position_id)
+def _recalc_position_cost(position, session):
+    """重算持仓的成本和数量（加权平均成本法）
 
+    私有函数，不对外暴露
+    必须在调用方的事务中执行，不在此函数内 commit
+
+    Args:
+        position: 持仓对象（已在 session 中）
+        session: 数据库会话（与调用方同一事务）
+    """
     # 获取所有相关交易（按时间顺序）
     transactions = session.query(Transaction)\
-        .filter_by(position_id=position_id)\
+        .filter_by(position_id=position.id)\
         .order_by(Transaction.transaction_date)\
         .all()
 
@@ -235,21 +276,23 @@ def recalc_position_cost(position_id):
             total_qty -= txn.quantity
             # 成本保持不变
 
-    # 更新持仓
+    # 更新持仓（不单独 commit）
     position.quantity = total_qty
     position.cost_price = total_cost
     position.market_value = position.current_price * total_qty
     position.profit_loss = position.market_value - (total_cost * total_qty)
     position.profit_loss_pct = (position.profit_loss / (total_cost * total_qty)) * 100 if total_qty > 0 else 0
 
-    session.commit()
+    # 注意：不在此 commit，由外层 recalc_strategy 统一提交
 
-def handle_recalc_failure(strategy_id, error_msg):
+def handle_recalc_failure(strategy_id, error_msg, session):
     """处理重算失败
 
     根据重试次数决定状态：
     - 重试次数 < 3：状态保持 dirty，允许后台任务继续重试
     - 重试次数 >= 3：状态改为 failed，停止自动重试
+
+    必须在调用方的事务中执行
     """
     strategy = session.query(Strategy).get(strategy_id)
 
@@ -263,6 +306,37 @@ def handle_recalc_failure(strategy_id, error_msg):
         strategy.last_error = error_msg
 
     session.commit()
+```
+
+**查询 API 状态处理：**
+
+```python
+@app.route('/api/strategies/<int:strategy_id>')
+def get_strategy(strategy_id):
+    """获取策略详情，包含重算状态"""
+    strategy = session.query(Strategy).get(strategy_id)
+
+    result = {
+        'id': strategy.id,
+        'name': strategy.name,
+        'current_capital': strategy.current_capital,
+        'recalc_status': strategy.recalc_status,  # 关键：返回状态
+        'last_error': strategy.last_error
+    }
+
+    # 前端根据 recalc_status 显示提示
+    return jsonify(result)
+```
+
+**前端状态提示：**
+
+```javascript
+// 根据 recalc_status 显示提示
+if (data.recalc_status === 'dirty' || data.recalc_status === 'recomputing') {
+    showNotification('数据更新中，当前显示可能为旧值', 'info');
+} else if (data.recalc_status === 'failed') {
+    showNotification(`数据更新失败：${data.last_error}`, 'error');
+}
 ```
 
 ---

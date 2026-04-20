@@ -335,9 +335,28 @@ recomputing（正在重算）
   - 若状态为 `recomputing`，忽略新的重算请求
   - `failed` 状态下，允许手动触发重算
 
+- **并发控制**：
+  - 使用乐观锁机制，确保同一 strategy 只被一个任务处理
+  - 通过条件更新获取执行权：`WHERE recalc_status = 'dirty' UPDATE TO 'recomputing'`
+  - 判断影响行数，若为 0 表示已被其他 worker 抢占
+
 - **状态查询 API**：
   - 返回当前状态，前端根据状态显示提示
-  - 或合并重算请求（标记为 pending）
+  - dirty/recomputing 状态下显示"数据更新中"
+  - failed 状态下显示错误信息
+
+- **重算事务保证**：
+  - 整个重算过程必须在单一事务中完成
+  - 所有数据库操作使用同一 session 实例
+  - 保证原子性：要么全部成功，要么全部回滚
+  - 禁止在重算过程中提前 commit
+
+- **状态字段设计**：
+  - 使用 `recalc_status` 作为唯一状态字段（枚举类型）
+  - 删除或废弃 `is_dirty` 字段，避免状态不一致
+  - 配套字段：
+    - `recalc_retry_count`：重试次数计数器
+    - `last_error`：最后一次失败原因
 
 **重算触发时机：**
 - 交易记录创建/修改/删除
