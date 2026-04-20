@@ -555,7 +555,379 @@ def test_recalc_status_consistency(self, client):
     session.close()
 ```
 
-#### 并发和恢复机制测试
+#### 完整状态机流转测试
+
+```python
+def test_complete_state_machine_transitions(self, client):
+    """测试：完整状态机流转路径"""
+    session = get_db_session()
+
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 路径1: clean → dirty → recomputing → clean
+    assert strategy.recalc_status == 'clean'
+
+    mark_strategy_dirty(strategy_id, session)
+    session.commit()
+    assert strategy.recalc_status == 'dirty'
+
+    rows = session.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'})
+    session.commit()
+    assert rows == 1
+    assert strategy.recalc_status == 'recomputing'
+
+    recalc_strategy(strategy_id, session)
+    assert strategy.recalc_status == 'clean'
+
+    # 路径2: clean → dirty → recomputing → failed
+    mark_strategy_dirty(strategy_id, session)
+    session.commit()
+
+    rows = session.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'})
+    session.commit()
+
+    # 模拟重算失败3次
+    for i in range(3):
+        try:
+            raise Exception("模拟失败")
+        except:
+            handle_recalc_failure(strategy_id, f"失败{i+1}")
+
+    session = get_db_session()
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'failed'
+
+    # 路径3: failed → dirty → recomputing → clean（重试恢复）
+    rows = session.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='failed')\
+        .update({'recalc_status': 'dirty', 'recalc_retry_count': 0})
+    session.commit()
+
+    recalc_strategy(strategy_id, session)
+    assert strategy.recalc_status == 'clean'
+
+    session.close()
+```
+
+#### Heartbeat 机制测试
+
+```python
+def test_recalc_heartbeat_updates_updated_at(self, client):
+    """测试：重算过程中 updated_at 持续更新（heartbeat）"""
+    from datetime import datetime, timedelta
+    import time
+
+    session = get_db_session()
+
+    # 创建测试数据（模拟长时间重算）
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session.add(strategy)
+
+    # 创建100个持仓（模拟大数据量）
+    for i in range(100):
+        position = Position(
+            symbol=f"00000{i}.SZSE",
+            strategy_id=strategy.id,
+            quantity=1000,
+            cost_price=10.00 + i * 0.1,
+            current_price=12.00 + i * 0.1
+        )
+        session.add(position)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 记录初始 updated_at
+    initial_updated_at = strategy.updated_at
+
+    # 标记开始重算
+    rows = session.query(Strategy)\
+        .filter_by(id=strategy_id, recalc_status='dirty')\
+        .update({'recalc_status': 'recomputing'})
+    session.commit()
+
+    # 执行重算（需要一定时间）
+    import time
+    time.sleep(2)  # 模拟耗时操作
+
+    recalc_strategy(strategy_id, session)
+
+    # 验证 updated_at 在重算过程中被更新
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.updated_at > initial_updated_at
+
+    session.close()
+```
+
+#### 部分重算中断测试
+
+```python
+def test_partial_recalc_interrupted_by_exception(self, client):
+    """测试：重算循环中异常时的原子性"""
+    session = get_db_session()
+
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session.add(strategy)
+
+    # 创建多个持仓
+    positions = []
+    for i in range(5):
+        position = Position(
+            symbol=f"00000{i}.SZSE",
+            strategy_id=strategy.id,
+            quantity=1000 * (i+1),
+            cost_price=10.00,
+            current_price=12.00
+        )
+        session.add(position)
+        positions.append(position)
+    session.commit()
+
+    # 记录原始数据
+    original_data = {}
+    for p in positions:
+        original_data[p.id] = {
+            'quantity': p.quantity,
+            'cost_price': p.cost_price
+        }
+
+    # 模拟在处理第3个position时抛出异常
+    original_recalc = _recalc_position_cost
+
+    def mock_recalc_with_exception(position, session):
+        if position.symbol == '000002.SZSE':  # 第3个
+            raise Exception("模拟处理第3个持仓时失败")
+        return original_recalc(position, session)
+
+    # 替换函数
+    import app
+    app._recalc_position_cost = mock_recalc_with_exception
+
+    # 执行重算（应该失败）
+    try:
+        recalc_strategy(strategy.id, session)
+        assert False, "应该抛出异常"
+    except Exception:
+        pass
+
+    # 恢复原函数
+    app._recalc_position_cost = original_recalc
+
+    # 验证：所有position数据未改变（原子性）
+    for p in positions:
+        p = session.query(Position).get(p.id)
+        assert p.quantity == original_data[p.id]['quantity']
+        assert p.cost_price == original_data[p.id]['cost_price']
+
+    # 验证：策略状态仍为dirty
+    strategy = session.query(Strategy).get(strategy.id)
+    assert strategy.recalc_status == 'dirty'  # 重算失败
+
+    session.close()
+```
+
+#### 实际并发重算测试
+
+```python
+def test_actual_concurrent_recalc_execution(self, client):
+    """测试：两个线程同时执行 recalc_strategy"""
+    import threading
+    import time
+
+    session = get_db_session()
+
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='dirty'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 创建两个线程同时执行重算
+    results = {'success': 0, 'failed': 0}
+    lock = threading.Lock()
+
+    def worker(worker_id):
+        try:
+            session = get_db_session()
+            recalc_strategy(strategy_id, session)
+            with lock:
+                results['success'] += 1
+        except Exception as e:
+            with lock:
+                results['failed'] += 1
+        finally:
+            session.close()
+
+    thread1 = threading.Thread(target=worker, args=(1,))
+    thread2 = threading.Thread(target=worker, args=(2,))
+
+    # 同时启动
+    thread1.start()
+    thread2.start()
+
+    # 等待完成
+    thread1.join()
+    thread2.join()
+
+    # 验证：只有一个成功，另一个失败
+    assert results['success'] == 1
+    assert results['failed'] == 1
+
+    # 验证：策略状态为clean（成功的线程）
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'clean'
+
+    session.close()
+```
+
+#### 端到端数据一致性测试
+
+```python
+def test_end_to_end_data_consistency(self, client):
+    """测试：交易修改 → 标记dirty → 重算 → 查询 全链路"""
+    session = get_db_session()
+
+    # 创建策略和持仓
+    strategy = Strategy(
+        name="测试策略",
+        initial_capital=1000000,
+        recalc_status='clean'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    position = Position(
+        symbol="000001.SZSE",
+        strategy_id=strategy_id,
+        quantity=1000,
+        cost_price=10.00,
+        current_price=10.00
+    )
+    session.add(position)
+    session.commit()
+    position_id = position.id
+
+    # 记录初始状态
+    original_capital = strategy.current_capital
+    original_quantity = position.quantity
+
+    # 1. 创建交易（触发标记dirty）
+    transaction = Transaction(
+        position_id=position_id,
+        strategy_id=strategy_id,
+        transaction_type="buy",
+        symbol="000001.SZSE",
+        quantity=500,
+        price=12.00,
+        fee=5.0,
+        amount=6005
+    )
+    session.add(transaction)
+    session.commit()
+
+    # 2. 验证标记为dirty
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'dirty'
+
+    # 3. 执行重算
+    recalc_strategy(strategy_id, session)
+
+    # 4. 验证重算完成
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'clean'
+
+    # 5. 验证数据一致性
+    position = session.query(Position).get(position_id)
+
+    # 持仓数量 = 1000 + 500 = 1500
+    assert position.quantity == 1500
+
+    # 持仓成本 = (10.00 * 1000 + 6005) / 1500 = 10.67
+    assert abs(position.cost_price - 10.67) < 0.01
+
+    # 市值 = 1500 * 12.00 = 18000
+    assert position.market_value == 18000
+
+    # 盈亏 = 18000 - (10.67 * 1500) = 1995
+    assert abs(position.profit_loss - 1995) < 1
+
+    # 策略总资产 = 18000
+    assert abs(strategy.current_capital - 18000) < 1
+
+    # 总回报率 = (18000 - 1000000) / 1000000（负值，因为只有一个持仓）
+    # 这个值取决于initial_capital的设置
+
+    session.close()
+```
+
+#### Scheduler批处理测试
+
+```python
+def test_scheduler_batch_processing_multiple_strategies(self, client):
+    """测试：Scheduler 批量处理多个 dirty 策略"""
+    session = get_db_session()
+
+    # 创建10个dirty策略
+    strategy_ids = []
+    for i in range(10):
+        strategy = Strategy(
+            name=f"测试策略{i}",
+            initial_capital=1000000 * (i+1),
+            recalc_status='dirty'
+        )
+        session.add(strategy)
+        session.commit()
+        strategy_ids.append(strategy.id)
+
+    # 为每个策略创建持仓
+    for strategy_id in strategy_ids:
+        position = Position(
+            symbol="000001.SZSE",
+            strategy_id=strategy_id,
+            quantity=1000,
+            cost_price=10.00,
+            current_price=12.00
+        )
+        session.add(position)
+    session.commit()
+
+    # 执行批量处理任务（模拟scheduler）
+    from app import recalc_dirty_strategies
+    recalc_dirty_strategies()
+
+    # 验证：所有策略都被重算
+    for strategy_id in strategy_ids:
+        strategy = session.query(Strategy).get(strategy_id)
+        assert strategy.recalc_status == 'clean', f"策略{strategy_id}未重算"
+
+    session.close()
+```
+
+---
+
+### 2.4 分页功能测试
 
 ```python
 def test_optimistic_lock_concurrent_access(self, client):
@@ -772,29 +1144,55 @@ def test_user_id_default_value(self, client):
 ### 5.1 SQL 注入测试
 
 ```python
-@pytest.mark.parametrize("endpoint,payload,injection_type", [
-    ("/api/positions", {"symbol": "'; DROP TABLE positions--", "quantity": 100}, "position"),
-    ("/api/strategies", {"name": "test'; DELETE FROM users--", "initial_capital": 100000}, "strategy"),
-    ("/api/transactions/1", {"price": 10, "reason": "'; DROP TABLE transactions--"}, "transaction"),
+@pytest.mark.parametrize("method,endpoint,payload,injection_type", [
+    ("POST", "/api/positions", {"symbol": "'; DROP TABLE positions--", "quantity": 100}, "position"),
+    ("POST", "/api/strategies", {"name": "test'; DELETE FROM users--", "initial_capital": 100000}, "strategy"),
+    ("PUT", "/api/transactions/1", {"price": 10, "reason": "'; DROP TABLE transactions--"}, "transaction"),
 ])
-def test_sql_injection_comprehensive(client, endpoint, payload, injection_type):
-    """全面的 SQL 注入测试"""
-    if 'POST' in endpoint:
+def test_sql_injection_comprehensive(client, method, endpoint, payload, injection_type):
+    """全面的 SQL 注入测试
+
+    根据 HTTP 方法选择请求类型：
+    - POST: 创建资源
+    - PUT: 更新资源
+    """
+    # 根据method选择请求方式
+    if method == "POST":
         response = client.post(endpoint, json=payload)
-    else:
+    elif method == "PUT":
         response = client.put(endpoint, json=payload)
-    
-    # 应该返回 400 或数据被转义
-    assert response.status_code in [200, 400]
-    
-    # 验证数据库表仍然存在
+    else:
+        response = client.get(endpoint, query_string=payload)
+
+    # 应该返回 400（错误请求）或数据被转义后返回200
+    assert response.status_code in [200, 400, 422]
+
+    # 验证数据库表仍然存在（未被注入攻击删除）
     session = get_db_session()
     tables = session.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     table_names = [t[0] for t in tables]
     assert 'positions' in table_names
     assert 'strategies' in table_names
     assert 'transactions' in table_names
+
+    # 验证注入载荷没有被当作SQL执行
+    # 如果payload被当作SQL执行，数据会被转义或拒绝
+    if response.status_code == 200:
+        data = response.get_json()
+        # 如果创建/更新成功，验证数据被正确转义
+        if injection_type == "position":
+            assert data.get('symbol') == payload['symbol'] or ';' not in data.get('symbol', '')
 ```
+
+**SQL注入载荷示例：**
+
+| 载荷类型 | 示例 | 预期行为 |
+|---------|------|---------|
+| DROP TABLE | `'; DROP TABLE positions--` | 拒绝或转义 |
+| DELETE FROM | `test'; DELETE FROM users--` | 拒绝或转义 |
+| UNION SELECT | `' UNION SELECT * FROM users--` | 拒绝或转义 |
+| OR 注入 | `' OR '1'='1` | 拒绝或转义 |
+| 注释符 | `test'; --` | 拒绝或转义 |
 
 ### 5.2 XSS 测试套件
 
@@ -898,7 +1296,93 @@ def test_transaction_large_dataset(client):
     duration = (end - start) * 1000
     assert duration < 1000  # 1秒内
     print(f"10万条交易分页查询耗时: {duration}ms")
+
+def test_recalc_performance_large_dataset(client):
+    """重算性能测试：1000持仓 + 100,000交易"""
+    session = get_db_session()
+
+    # 创建策略
+    strategy = Strategy(
+        name="性能测试策略",
+        initial_capital=10000000,
+        recalc_status='dirty'
+    )
+    session.add(strategy)
+    session.commit()
+    strategy_id = strategy.id
+
+    # 创建1000个持仓
+    print("创建1000个持仓...")
+    positions = []
+    for i in range(1000):
+        position = Position(
+            symbol=f'{i:06d}.SZSE',
+            strategy_id=strategy_id,
+            quantity=1000 + i,
+            cost_price=10.00 + (i % 100) * 0.1,
+            current_price=12.00 + (i % 100) * 0.1
+        )
+        session.add(position)
+        positions.append(position)
+
+        # 每100个提交一次
+        if (i + 1) % 100 == 0:
+            session.commit()
+
+    session.commit()
+
+    # 为每个持仓创建100条交易（总共100,000条）
+    print("创建100,000条交易记录...")
+    batch_size = 1000
+    for batch in range(100):
+        for i in range(batch_size):
+            position = positions[i % 1000]
+            transaction = Transaction(
+                position_id=position.id,
+                strategy_id=strategy_id,
+                transaction_type="buy" if i % 2 == 0 else "sell",
+                symbol=position.symbol,
+                quantity=100,
+                price=10.00 + (batch % 10),
+                amount=1000,
+                user_id=1
+            )
+            session.add(transaction)
+        session.commit()  # 分批提交
+
+    # 执行重算并测量性能
+    print("执行重算...")
+    import time
+    start = time.time()
+
+    recalc_strategy(strategy_id, session)
+
+    end = time.time()
+    duration = (end - start)
+
+    print(f"1000持仓 + 100,000交易重算耗时: {duration:.2f}秒")
+
+    # 性能要求：重算时间 < 5秒
+    assert duration < 5, f"重算时间{duration}秒超过5秒限制"
+
+    # 验证重算完成
+    strategy = session.query(Strategy).get(strategy_id)
+    assert strategy.recalc_status == 'clean'
+    assert strategy.recalc_retry_count == 0
+
+    # 验证数据准确性（抽查）
+    for i in [0, 100, 500, 999]:
+        position = session.query(Position).get(positions[i].id)
+        assert position.market_value > 0
+        assert abs(position.profit_loss_pct) < 100  # 盈亏百分比应合理
+
+    session.close()
+    print(f"✅ 性能测试通过：{duration:.2f}秒 < 5秒")
 ```
+
+---
+
+## 7. 测试执行计划
 
 ---
 
