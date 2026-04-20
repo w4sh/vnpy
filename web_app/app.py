@@ -29,8 +29,34 @@ from scripts.advanced_bollinger_picker import AdvancedBollingerPicker
 # 导入股票名称映射
 from web_app.stock_names import format_stock_symbol
 
+# 导入持仓管理API蓝图
+from web_app.position_api import position_bp
+
+# 导入策略API蓝图
+from web_app.strategy_api import strategy_bp
+
+# 导入数据分析API蓝图
+from web_app.analytics_api import analytics_bp
+
+# 导入定时任务
+from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
+import atexit
+
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # 支持中文
+
+# 注册持仓管理蓝图
+app.register_blueprint(position_bp)
+# 注册策略管理蓝图
+app.register_blueprint(strategy_bp)
+# 注册数据分析蓝图
+app.register_blueprint(analytics_bp)
+
+# 初始化定时任务
+init_scheduler()
+
+# 注册退出时关闭scheduler
+atexit.register(shutdown_scheduler)
 
 # 全局配置
 LAB_PATH = "/Users/w4sh8899/project/vnpy/lab_data"
@@ -400,6 +426,12 @@ def compare_strategies():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/position_management")
+def position_management():
+    """持仓管理页面"""
+    return render_template("position_overview.html")
 
 
 if __name__ == "__main__":
