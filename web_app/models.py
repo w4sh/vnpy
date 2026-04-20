@@ -109,6 +109,7 @@ class Transaction(Base):
     notes = Column(Text)  # 备注
     user_id = Column(Integer, nullable=False, default=1)  # 用户ID
     created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关系
     position = relationship("Position", back_populates="transactions")

@@ -6,8 +6,19 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from models import Position, Strategy, Transaction, RiskMetric, get_db_session
+from web_app.models import (
+    Position,
+    Strategy,
+    Transaction,
+    RiskMetric,
+    TransactionAuditLog,
+    get_db_session,
+)
 from sqlalchemy.orm import joinedload
+from web_app.recalc_service import RecalculationService
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 创建蓝图
 position_bp = Blueprint("positions", __name__, url_prefix="/api")
@@ -412,3 +423,148 @@ def create_transaction():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@position_bp.route("/transactions/<int:transaction_id>", methods=["PUT"])
+def update_transaction(transaction_id):
+    """修改交易记录
+
+    请求体:
+    {
+        "price": 38.50,
+        "quantity": 1000,
+        "fee": 5.0,
+        "reason": "价格录入错误"  # 必填
+    }
+    """
+    session = get_db_session()
+    try:
+        transaction = session.query(Transaction).get(transaction_id)
+        if not transaction:
+            return jsonify({"error": "交易记录不存在"}), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "请求体不能为空"}), 400
+
+        # reason字段必填
+        if "reason" not in data or not data["reason"]:
+            return jsonify({"error": "必须提供修改原因"}), 400
+
+        # 记录原始值
+        old_values = {}
+        changes = []
+
+        # 更新价格
+        if "price" in data:
+            if data["price"] <= 0:
+                return jsonify({"error": "价格必须大于0"}), 400
+            old_values["price"] = transaction.price
+            transaction.price = data["price"]
+            changes.append("price")
+
+        # 更新数量
+        if "quantity" in data:
+            if data["quantity"] <= 0:
+                return jsonify({"error": "数量必须大于0"}), 400
+            old_values["quantity"] = transaction.quantity
+            transaction.quantity = data["quantity"]
+            changes.append("quantity")
+
+        # 更新手续费
+        if "fee" in data:
+            if data["fee"] < 0:
+                return jsonify({"error": "手续费不能为负数"}), 400
+            old_values["fee"] = transaction.fee
+            transaction.fee = data["fee"]
+            changes.append("fee")
+
+        if not changes:
+            return jsonify({"error": "没有需要更新的字段"}), 400
+
+        # 重新计算金额
+        if "price" in data or "quantity" in data:
+            transaction.amount = transaction.quantity * transaction.price
+            if transaction.transaction_type == "sell":
+                transaction.amount -= transaction.fee
+
+        # 记录审计日志
+        for field in changes:
+            audit_log = TransactionAuditLog(
+                transaction_id=transaction_id,
+                field_name=field,
+                old_value=str(old_values.get(field, "")),
+                new_value=str(data[field]),
+                change_reason=data["reason"],
+                changed_at=datetime.now(),
+            )
+            session.add(audit_log)
+
+        transaction.updated_at = datetime.now()
+
+        # 标记策略为dirty（需要重算）
+        recalc_service = RecalculationService(session)
+        recalc_service.mark_strategy_dirty(transaction.strategy_id)
+
+        session.commit()
+
+        logger.info(
+            f"交易{transaction_id}修改成功,策略{transaction.strategy_id}标记为dirty"
+        )
+
+        return jsonify(
+            {
+                "id": transaction.id,
+                "symbol": transaction.symbol,
+                "transaction_type": transaction.transaction_type,
+                "quantity": transaction.quantity,
+                "price": float(transaction.price),
+                "amount": float(transaction.amount),
+                "fee": float(transaction.fee) if transaction.fee else 0,
+                "updated_at": transaction.updated_at.isoformat(),
+            }
+        )
+
+    except Exception as e:
+        session.rollback()
+        logger.error(f"修改交易{transaction_id}失败: {e}")
+        return jsonify({"error": f"修改失败: {str(e)}"}), 500
+    finally:
+        session.close()
+
+
+@position_bp.route("/transactions/<int:transaction_id>/audit", methods=["GET"])
+def get_transaction_audit_log(transaction_id):
+    """获取交易记录的审计日志"""
+    session = get_db_session()
+    try:
+        transaction = session.query(Transaction).get(transaction_id)
+        if not transaction:
+            return jsonify({"error": "交易记录不存在"}), 404
+
+        audit_logs = (
+            session.query(TransactionAuditLog)
+            .filter_by(transaction_id=transaction_id)
+            .order_by(TransactionAuditLog.changed_at.desc())
+            .all()
+        )
+
+        return jsonify(
+            [
+                {
+                    "id": log.id,
+                    "field_name": log.field_name,
+                    "old_value": log.old_value,
+                    "new_value": log.new_value,
+                    "change_reason": log.change_reason,
+                    "changed_at": log.changed_at.isoformat(),
+                }
+                for log in audit_logs
+            ]
+        )
+
+    except Exception as e:
+        logger.error(f"获取审计日志失败: {e}")
+        return jsonify({"error": f"获取失败: {str(e)}"}), 500
+    finally:
+        session.close()
