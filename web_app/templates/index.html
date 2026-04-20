@@ -341,6 +341,114 @@
             color: #666;
             font-size: 0.9em;
         }
+
+        /* 持仓管理样式 */
+        .position-subpage {
+            display: none;
+        }
+
+        .position-subpage.active {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #667eea;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .results-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            margin: 0 2px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .edit-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .view-btn {
+            background: #27ae60;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -354,6 +462,7 @@
             <button class="nav-btn active" onclick="showPage('backtest')">策略回测</button>
             <button class="nav-btn" onclick="showPage('picker')">智能选股</button>
             <button class="nav-btn" onclick="showPage('compare')">策略对比</button>
+            <button class="nav-btn" onclick="showPage('position')">持仓管理</button>
         </div>
 
         <div class="content">
@@ -501,10 +610,292 @@
 
                 <div id="compare-results" class="results"></div>
             </div>
+
+            <!-- 持仓管理页面 -->
+            <div id="position-page" class="page">
+                <!-- 子导航 -->
+                <div class="sub-nav" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="showPositionSubPage('overview')">持仓概览</button>
+                    <button class="btn btn-secondary" onclick="showPositionSubPage('strategy')">策略分析</button>
+                    <button class="btn btn-secondary" onclick="showPositionSubPage('transactions')">交易记录</button>
+                    <button class="btn btn-secondary" onclick="showPositionSubPage('risk')">风险分析</button>
+                </div>
+
+                <!-- 持仓概览子页面 -->
+                <div id="position-overview-subpage" class="position-subpage">
+                    <div class="section">
+                        <h3>📊 投资组合总览</h3>
+                        <div class="stats-grid" id="portfolio-stats">
+                            <div class="stat-card">
+                                <div class="value" id="total-assets">-</div>
+                                <div class="label">总资产</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="value" id="total-profit">-</div>
+                                <div class="label">总盈亏</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="value" id="position-count">-</div>
+                                <div class="label">持仓数量</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="value" id="profit-ratio">-</div>
+                                <div class="label">盈亏比例</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3>📈 可视化分析</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                            <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <h4 style="text-align: center; margin-bottom: 15px; color: #667eea;">持仓分布</h4>
+                                <canvas id="position-distribution-chart"></canvas>
+                            </div>
+                            <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <h4 style="text-align: center; margin-bottom: 15px; color: #667eea;">盈亏分析</h4>
+                                <canvas id="profit-loss-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>💼 持仓明细</h3>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-primary" onclick="updatePrices()" id="update-prices-btn">🔄 更新价格</button>
+                                <button class="btn" onclick="showAddPositionModal()">➕ 新增持仓</button>
+                            </div>
+                        </div>
+                        <div id="positions-table-container">
+                            <table class="results-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f8f9fa;">
+                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">股票代码</th>
+                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">数量</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">成本价</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">现价</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">市值</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">盈亏</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">盈亏%</th>
+                                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e0e0e0;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="positions-table-body">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; padding: 40px; color: #999;">暂无持仓数据</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 策略分析子页面 -->
+                <div id="position-strategy-subpage" class="position-subpage" style="display: none;">
+                    <div class="section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>🎯 策略分析</h3>
+                            <button class="btn" onclick="showAddStrategyModal()">➕ 创建策略</button>
+                        </div>
+                        <div id="strategies-grid" class="strategy-grid">
+                            <!-- 策略卡片将由JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 交易记录子页面 -->
+                <div id="position-transactions-subpage" class="position-subpage" style="display: none;">
+                    <div class="section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>📝 交易记录</h3>
+                            <button class="btn" onclick="showAddTransactionModal()">➕ 记录交易</button>
+                        </div>
+                        <div id="transactions-table-container">
+                            <table class="results-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f8f9fa;">
+                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">日期</th>
+                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">股票代码</th>
+                                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e0e0e0;">类型</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">数量</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">价格</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">金额</th>
+                                        <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">手续费</th>
+                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">备注</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-table-body">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; padding: 40px; color: #999;">暂无交易记录</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 风险分析子页面 -->
+                <div id="position-risk-subpage" class="position-subpage" style="display: none;">
+                    <div class="section">
+                        <h3>⚠️ 风险分析</h3>
+                        <div class="info-box">
+                            <h4>💡 风险提示</h4>
+                            <p>风险分析功能正在开发中，敬请期待...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增持仓模态框 -->
+    <div id="add-position-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ 新增持仓</h3>
+                <button class="close-btn" onclick="closeModal('add-position-modal')">&times;</button>
+            </div>
+            <form id="add-position-form">
+                <div class="form-group">
+                    <label>股票代码</label>
+                    <input type="text" id="pos-symbol" placeholder="例如: 000001.SZSE" required>
+                </div>
+                <div class="form-group">
+                    <label>股票名称</label>
+                    <input type="text" id="pos-name" placeholder="例如: 平安银行" required>
+                </div>
+                <div class="form-group">
+                    <label>持仓数量</label>
+                    <input type="number" id="pos-quantity" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label>成本价格</label>
+                    <input type="number" id="pos-cost-price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>当前价格</label>
+                    <input type="number" id="pos-current-price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>买入日期</label>
+                    <input type="date" id="pos-buy-date" required>
+                </div>
+                <div class="form-group">
+                    <label>策略</label>
+                    <select id="pos-strategy">
+                        <option value="">不关联策略</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>止损价</label>
+                    <input type="number" id="pos-stop-loss" step="0.01" placeholder="可选">
+                </div>
+                <div class="form-group">
+                    <label>止盈价</label>
+                    <input type="number" id="pos-take-profit" step="0.01" placeholder="可选">
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input type="text" id="pos-notes" placeholder="可选">
+                </div>
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn">✅ 保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-position-modal')">❌ 取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新增策略模态框 -->
+    <div id="add-strategy-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ 创建策略</h3>
+                <button class="close-btn" onclick="closeModal('add-strategy-modal')">&times;</button>
+            </div>
+            <form id="add-strategy-form">
+                <div class="form-group">
+                    <label>策略名称</label>
+                    <input type="text" id="strat-name" placeholder="例如: 双均线策略" required>
+                </div>
+                <div class="form-group">
+                    <label>策略描述</label>
+                    <input type="text" id="strat-description" placeholder="策略简介">
+                </div>
+                <div class="form-group">
+                    <label>初始资金</label>
+                    <input type="number" id="strat-initial-capital" step="10000" value="1000000" required>
+                </div>
+                <div class="form-group">
+                    <label>风险等级</label>
+                    <select id="strat-risk-level">
+                        <option value="低">低风险</option>
+                        <option value="中等" selected>中等风险</option>
+                        <option value="高">高风险</option>
+                    </select>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn">✅ 保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-strategy-modal')">❌ 取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新增交易记录模态框 -->
+    <div id="add-transaction-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ 记录交易</h3>
+                <button class="close-btn" onclick="closeModal('add-transaction-modal')">&times;</button>
+            </div>
+            <form id="add-transaction-form">
+                <div class="form-group">
+                    <label>持仓</label>
+                    <select id="txn-position" required>
+                        <option value="">选择持仓</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>交易类型</label>
+                    <select id="txn-type" required>
+                        <option value="buy">买入</option>
+                        <option value="sell">卖出</option>
+                        <option value="dividend">分红</option>
+                        <option value="bonus">送股</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>交易日期</label>
+                    <input type="date" id="txn-date" required>
+                </div>
+                <div class="form-group">
+                    <label>数量</label>
+                    <input type="number" id="txn-quantity" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label>价格</label>
+                    <input type="number" id="txn-price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>手续费</label>
+                    <input type="number" id="txn-fee" step="0.01" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input type="text" id="txn-notes" placeholder="可选">
+                </div>
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn">✅ 保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-transaction-modal')">❌ 取消</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         // 全局变量
         let selectedStrategies = [];
@@ -981,6 +1372,550 @@
         // 页面加载完成后初始化
         $(document).ready(function() {
             loadStrategies();
+        });
+
+        // ==================== 持仓管理功能 ====================
+
+        // 显示持仓管理子页面
+        function showPositionSubPage(subPageName) {
+            $('.position-subpage').removeClass('active');
+            $(`#position-${subPageName}-subpage`).addClass('active');
+
+            // 加载对应数据
+            if (subPageName === 'overview') {
+                loadPositions();
+            } else if (subPageName === 'strategy') {
+                loadStrategiesForPosition();
+            } else if (subPageName === 'transactions') {
+                loadTransactions();
+            }
+        }
+
+        // 加载持仓数据
+        function loadPositions() {
+            $.get('/api/positions', function(response) {
+                if (response.success) {
+                    updatePortfolioStats(response.positions);
+                    displayPositionsTable(response.positions);
+                    // 更新图表
+                    updatePositionDistributionChart(response.positions);
+                    updateProfitLossChart(response.positions);
+                }
+            }).fail(function() {
+                showError('加载持仓数据失败');
+            });
+        }
+
+        // 更新价格
+        function updatePrices() {
+            const btn = $('#update-prices-btn');
+            const originalText = btn.text();
+
+            // 显示加载状态
+            btn.prop('disabled', true).text('⏳ 更新中...');
+
+            $.ajax({
+                url: '/api/quote/update',
+                method: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showSuccess('价格更新成功!');
+                        // 重新加载持仓数据
+                        loadPositions();
+                    } else {
+                        showError('更新失败: ' + (response.error || '未知错误'));
+                    }
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON?.error || '网络错误,请检查连接';
+                    showError('更新失败: ' + errorMsg);
+                },
+                complete: function() {
+                    // 恢复按钮状态
+                    btn.prop('disabled', false).text(originalText);
+                }
+            });
+        }
+
+
+        // 更新投资组合统计
+        function updatePortfolioStats(positions) {
+            let totalAssets = 0;
+            let totalProfit = 0;
+
+            positions.forEach(pos => {
+                totalAssets += pos.market_value;
+                totalProfit += pos.profit_loss;
+            });
+
+            const profitRatio = totalAssets > 0 ? (totalProfit / (totalAssets - totalProfit)) * 100 : 0;
+
+            $('#total-assets').text('¥' + totalAssets.toLocaleString('zh-CN', {maximumFractionDigits: 0}));
+            $('#total-profit').text((totalProfit >= 0 ? '+' : '') + '¥' + totalProfit.toLocaleString('zh-CN', {maximumFractionDigits: 0}));
+            $('#total-profit').css('color', totalProfit >= 0 ? '#27ae60' : '#e74c3c');
+            $('#position-count').text(positions.length);
+            $('#profit-ratio').text((profitRatio >= 0 ? '+' : '') + profitRatio.toFixed(2) + '%');
+            $('#profit-ratio').css('color', profitRatio >= 0 ? '#27ae60' : '#e74c3c');
+        }
+
+        // 显示持仓表格
+        function displayPositionsTable(positions) {
+            const tbody = $('#positions-table-body');
+
+            if (positions.length === 0) {
+                tbody.html('<tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">暂无持仓数据</td></tr>');
+                return;
+            }
+
+            let html = '';
+            positions.forEach(pos => {
+                const profitClass = pos.profit_loss >= 0 ? 'positive' : 'negative';
+                html += `
+                    <tr>
+                        <td><strong>${pos.symbol}</strong><br><small style="color: #999;">${pos.name || ''}</small></td>
+                        <td>${pos.quantity}</td>
+                        <td style="text-align: right;">¥${pos.cost_price.toFixed(2)}</td>
+                        <td style="text-align: right;">¥${pos.current_price.toFixed(2)}</td>
+                        <td style="text-align: right;">¥${pos.market_value.toLocaleString('zh-CN', {maximumFractionDigits: 0})}</td>
+                        <td style="text-align: right;" class="${profitClass}">${pos.profit_loss >= 0 ? '+' : ''}¥${pos.profit_loss.toFixed(2)}</td>
+                        <td style="text-align: right;" class="${profitClass}">${pos.profit_loss_pct >= 0 ? '+' : ''}${pos.profit_loss_pct.toFixed(2)}%</td>
+                        <td style="text-align: center;">
+                            <button class="action-btn edit-btn" onclick="editPosition(${pos.id})">编辑</button>
+                            <button class="action-btn delete-btn" onclick="deletePosition(${pos.id})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.html(html);
+        }
+
+        // 加载策略列表（用于持仓管理）
+        function loadStrategiesForPosition() {
+            $.get('/api/strategies', function(response) {
+                if (response.success) {
+                    displayStrategiesGrid(response.strategies);
+                    updateStrategySelects(response.strategies);
+                }
+            }).fail(function() {
+                showError('加载策略数据失败');
+            });
+        }
+
+        // 显示策略卡片
+        function displayStrategiesGrid(strategies) {
+            const grid = $('#strategies-grid');
+
+            if (strategies.length === 0) {
+                grid.html('<p style="text-align: center; color: #999; padding: 40px;">暂无策略，点击上方按钮创建新策略</p>');
+                return;
+            }
+
+            let html = '';
+            strategies.forEach(strat => {
+                const returnClass = strat.total_return >= 0 ? 'positive' : 'negative';
+                html += `
+                    <div class="strategy-card">
+                        <h4>${strat.name}</h4>
+                        <p><strong>初始资金:</strong> ¥${strat.initial_capital.toLocaleString()}</p>
+                        <p><strong>当前资金:</strong> ¥${strat.current_capital.toLocaleString()}</p>
+                        <p><strong>总收益率:</strong> <span class="${returnClass}">${strat.total_return >= 0 ? '+' : ''}${strat.total_return.toFixed(2)}%</span></p>
+                        <p><strong>持仓数量:</strong> ${strat.position_count}</p>
+                        <p><strong>风险等级:</strong> ${strat.risk_level}</p>
+                    </div>
+                `;
+            });
+
+            grid.html(html);
+        }
+
+        // 更新策略选择下拉框
+        function updateStrategySelects(strategies) {
+            const options = '<option value="">不关联策略</option>' +
+                strategies.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            $('#pos-strategy').html(options);
+        }
+
+        // 加载交易记录
+        function loadTransactions() {
+            $.get('/api/transactions', function(response) {
+                if (response.success) {
+                    displayTransactionsTable(response.transactions);
+                }
+            }).fail(function() {
+                showError('加载交易记录失败');
+            });
+        }
+
+        // 显示交易记录表格
+        function displayTransactionsTable(transactions) {
+            const tbody = $('#transactions-table-body');
+
+            if (transactions.length === 0) {
+                tbody.html('<tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">暂无交易记录</td></tr>');
+                return;
+            }
+
+            let html = '';
+            transactions.forEach(txn => {
+                const typeClass = txn.transaction_type === 'buy' ? 'positive' : (txn.transaction_type === 'sell' ? 'negative' : '');
+                const typeText = txn.transaction_type === 'buy' ? '买入' : (txn.transaction_type === 'sell' ? '卖出' : (txn.transaction_type === 'dividend' ? '分红' : '送股'));
+                html += `
+                    <tr>
+                        <td>${txn.transaction_date}</td>
+                        <td><strong>${txn.symbol}</strong></td>
+                        <td style="text-align: center;"><span class="${typeClass}">${typeText}</span></td>
+                        <td style="text-align: right;">${txn.quantity}</td>
+                        <td style="text-align: right;">¥${txn.price.toFixed(2)}</td>
+                        <td style="text-align: right;">¥${txn.amount.toLocaleString()}</td>
+                        <td style="text-align: right;">¥${txn.fee.toFixed(2)}</td>
+                        <td><small style="color: #999;">${txn.notes || '-'}</small></td>
+                    </tr>
+                `;
+            });
+
+            tbody.html(html);
+        }
+
+        // 显示模态框
+        function showAddPositionModal() {
+            $('#add-position-modal').addClass('active');
+            // 设置默认日期为今天
+            $('#pos-buy-date').val(new Date().toISOString().split('T')[0]);
+        }
+
+        function showAddStrategyModal() {
+            $('#add-strategy-modal').addClass('active');
+        }
+
+        function showAddTransactionModal() {
+            // 先加载持仓列表
+            $.get('/api/positions', function(response) {
+                if (response.success) {
+                    const options = '<option value="">选择持仓</option>' +
+                        response.positions.map(p => `<option value="${p.id}">${p.symbol} - ${p.quantity}股</option>`).join('');
+                    $('#txn-position').html(options);
+                }
+            });
+
+            $('#add-transaction-modal').addClass('active');
+            // 设置默认日期为今天
+            $('#txn-date').val(new Date().toISOString().split('T')[0]);
+        }
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            $(`#${modalId}`).removeClass('active');
+            // 清空表单
+            $(`#${modalId} form`)[0].reset();
+        }
+
+        // 保存持仓
+        $('#add-position-form').on('submit', function(e) {
+            e.preventDefault();
+
+            const data = {
+                symbol: $('#pos-symbol').val(),
+                name: $('#pos-name').val(),
+                quantity: parseInt($('#pos-quantity').val()),
+                cost_price: parseFloat($('#pos-cost-price').val()),
+                current_price: parseFloat($('#pos-current-price').val()),
+                buy_date: $('#pos-buy-date').val(),
+                strategy_id: $('#pos-strategy').val() || null,
+                stop_loss: $('#pos-stop-loss').val() || null,
+                take_profit: $('#pos-take-profit').val() || null,
+                notes: $('#pos-notes').val()
+            };
+
+            $.ajax({
+                url: '/api/positions',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(response) {
+                    if (response.success) {
+                        closeModal('add-position-modal');
+                        loadPositions();
+                        alert('持仓添加成功！');
+                    } else {
+                        showError('添加失败: ' + response.error);
+                    }
+                },
+                error: function(xhr) {
+                    showError('添加失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                }
+            });
+        });
+
+        // 保存策略
+        $('#add-strategy-form').on('submit', function(e) {
+            e.preventDefault();
+
+            const data = {
+                name: $('#strat-name').val(),
+                description: $('#strat-description').val(),
+                initial_capital: parseFloat($('#strat-initial-capital').val()),
+                risk_level: $('#strat-risk-level').val()
+            };
+
+            $.ajax({
+                url: '/api/strategies',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(response) {
+                    if (response.success) {
+                        closeModal('add-strategy-modal');
+                        loadStrategiesForPosition();
+                        alert('策略创建成功！');
+                    } else {
+                        showError('创建失败: ' + response.error);
+                    }
+                },
+                error: function(xhr) {
+                    showError('创建失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                }
+            });
+        });
+
+        // 保存交易记录
+        $('#add-transaction-form').on('submit', function(e) {
+            e.preventDefault();
+
+            const positionId = $('#txn-position').val();
+            const quantity = parseInt($('#txn-quantity').val());
+            const price = parseFloat($('#txn-price').val());
+            const fee = parseFloat($('#txn-fee').val());
+
+            const data = {
+                position_id: parseInt(positionId),
+                transaction_type: $('#txn-type').val(),
+                symbol: '', // 将从后端根据position_id获取
+                quantity: quantity,
+                price: price,
+                amount: quantity * price,
+                fee: fee,
+                transaction_date: $('#txn-date').val(),
+                notes: $('#txn-notes').val()
+            };
+
+            // 获取持仓信息填充symbol
+            $.get(`/api/positions`, function(response) {
+                if (response.success) {
+                    const position = response.positions.find(p => p.id === parseInt(positionId));
+                    if (position) {
+                        data.symbol = position.symbol;
+                        data.strategy_id = position.strategy_id;
+
+                        $.ajax({
+                            url: '/api/transactions',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(data),
+                            success: function(response) {
+                                if (response.success) {
+                                    closeModal('add-transaction-modal');
+                                    loadTransactions();
+                                    alert('交易记录成功！');
+                                } else {
+                                    showError('记录失败: ' + response.error);
+                                }
+                            },
+                            error: function(xhr) {
+                                showError('记录失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                            }
+                        });
+                    }
+                }
+            });
+        });
+
+        // 删除持仓
+        function deletePosition(positionId) {
+            if (!confirm('确定要删除这个持仓吗？')) {
+                return;
+            }
+
+            $.ajax({
+                url: `/api/positions/${positionId}`,
+                method: 'DELETE',
+                success: function(response) {
+                    if (response.success) {
+                        loadPositions();
+                        alert('持仓删除成功！');
+                    } else {
+                        showError('删除失败: ' + response.error);
+                    }
+                },
+                error: function(xhr) {
+                    showError('删除失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                }
+            });
+        }
+
+        // 编辑持仓（简化版，只弹出提示）
+        function editPosition(positionId) {
+            alert('编辑功能正在开发中，敬请期待...\n\n您可以先删除后重新添加来修改持仓信息。');
+        }
+
+        // ==================== 数据可视化功能 ====================
+
+        // 全局图表实例
+        let positionDistributionChart = null;
+        let profitLossChart = null;
+
+        // 初始化图表
+        function initCharts() {
+            initPositionDistributionChart();
+            initProfitLossChart();
+        }
+
+        // 初始化持仓分布饼图
+        function initPositionDistributionChart() {
+            const ctx = document.getElementById('position-distribution-chart');
+            if (!ctx) return;
+
+            positionDistributionChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            '#667eea', '#764ba2', '#f093fb', '#4facfe',
+                            '#43e97b', '#fa709a', '#fee140', '#30cfd0',
+                            '#a8edea', '#fed6e3', '#c471f5', '#12c2e9'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 初始化盈亏分析柱状图
+        function initProfitLossChart() {
+            const ctx = document.getElementById('profit-loss-chart');
+            if (!ctx) return;
+
+            profitLossChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '盈利',
+                        data: [],
+                        backgroundColor: 'rgba(39, 174, 96, 0.8)',
+                        borderColor: 'rgba(39, 174, 96, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: '亏损',
+                        data: [],
+                        backgroundColor: 'rgba(231, 76, 60, 0.8)',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ¥${context.parsed.y.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新持仓分布图表
+        function updatePositionDistributionChart(positions) {
+            if (!positionDistributionChart || !positions || positions.length === 0) {
+                return;
+            }
+
+            const labels = positions.map(p => p.symbol);
+            const data = positions.map(p => p.market_value);
+
+            positionDistributionChart.data.labels = labels;
+            positionDistributionChart.data.datasets[0].data = data;
+            positionDistributionChart.update();
+        }
+
+        // 更新盈亏分析图表
+        function updateProfitLossChart(positions) {
+            if (!profitLossChart || !positions || positions.length === 0) {
+                return;
+            }
+
+            const labels = positions.map(p => p.symbol);
+            const profitData = positions.map(p => p.profit_loss > 0 ? p.profit_loss : 0);
+            const lossData = positions.map(p => p.profit_loss < 0 ? Math.abs(p.profit_loss) : 0);
+
+            profitLossChart.data.labels = labels;
+            profitLossChart.data.datasets[0].data = profitData;
+            profitLossChart.data.datasets[1].data = lossData;
+            profitLossChart.update();
+        }
+
+        // 在页面加载完成后初始化图表
+        $(document).ready(function() {
+            loadStrategies();
+
+            // 延迟初始化图表，确保Canvas元素已渲染
+            setTimeout(function() {
+                initCharts();
+            }, 500);
         });
     </script>
 </body>
