@@ -73,7 +73,7 @@ def test_update_strategy_reject_protected_fields(app, db_session):
 
 
 def test_delete_strategy_success(app, db_session):
-    """测试:成功删除策略"""
+    """测试:成功删除策略(软删除)"""
     strategy = Strategy(name="测试策略", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
@@ -84,13 +84,15 @@ def test_delete_strategy_success(app, db_session):
 
     assert response.status_code == 200
     data = response.get_json()
+    assert data["status"] == "deleted"
     assert "message" in data
     assert "已删除" in data["message"]
 
-    # 验证策略已被删除
+    # 验证软删除:策略仍存在但状态为deleted
     db_session.expire_all()
     strategy = db_session.query(Strategy).get(strategy_id)
-    assert strategy is None
+    assert strategy is not None  # 仍然存在
+    assert strategy.status == "deleted"  # 状态已改变
 
 
 def test_delete_strategy_with_active_positions(app, db_session):
@@ -168,3 +170,27 @@ def test_get_strategy_positions(app, db_session):
     assert len(data) == 1
     assert data[0]["symbol"] == "000001.SZSE"
     assert data[0]["quantity"] == 1000
+
+
+def test_get_strategy_details_after_deletion(app, db_session):
+    """测试:获取已删除策略的详情(应该返回404)"""
+    strategy = Strategy(
+        name="测试策略",
+        description="策略描述",
+        initial_capital=1000000,
+        recalc_status="clean",
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    strategy_id = strategy.id
+
+    # 软删除策略
+    strategy.status = "deleted"
+    db_session.commit()
+
+    client = app.test_client()
+    response = client.get(f"/api/strategies/{strategy_id}")
+
+    # 应该返回404,因为策略已删除
+    assert response.status_code == 404
+    assert "不存在" in response.get_json()["error"]

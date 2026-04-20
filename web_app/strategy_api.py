@@ -114,9 +114,9 @@ def update_strategy(strategy_id):
 
 @strategy_bp.route("/api/strategies/<int:strategy_id>", methods=["DELETE"])
 def delete_strategy(strategy_id):
-    """删除策略
+    """软删除策略
 
-    注意: 由于Strategy模型没有status字段,这里实现为硬删除
+    将status设为'deleted'，记录审计日志
     如果策略有活跃持仓(status='holding'),则拒绝删除
     """
     session = get_db_session()
@@ -142,22 +142,24 @@ def delete_strategy(strategy_id):
         # 记录审计日志
         audit_log = StrategyAuditLog(
             strategy_id=strategy_id,
-            field_name="deleted",
-            old_value=strategy.name,
-            new_value="None",
+            field_name="status",
+            old_value="active",
+            new_value="deleted",
             change_reason=reason,
             changed_at=datetime.now(),
         )
         session.add(audit_log)
 
-        # 删除策略
-        strategy_name = strategy.name
-        session.delete(strategy)
+        # 软删除：将status设为deleted
+        strategy.status = "deleted"
+        strategy.updated_at = datetime.now()
         session.commit()
 
-        logger.info(f"策略{strategy_id}({strategy_name})已删除")
+        logger.info(f"策略{strategy_id}已软删除")
 
-        return jsonify({"id": strategy_id, "message": f"策略'{strategy_name}'已删除"})
+        return jsonify(
+            {"id": strategy_id, "status": "deleted", "message": "策略已删除"}
+        )
     except Exception as e:
         session.rollback()
         logger.error(f"删除策略{strategy_id}失败: {e}")
@@ -173,6 +175,10 @@ def get_strategy(strategy_id):
     try:
         strategy = session.query(Strategy).get(strategy_id)
         if not strategy:
+            return jsonify({"error": "策略不存在"}), 404
+
+        # 过滤已删除的策略
+        if strategy.status == "deleted":
             return jsonify({"error": "策略不存在"}), 404
 
         return jsonify(
@@ -197,6 +203,7 @@ def get_strategy(strategy_id):
                 "recalc_status": strategy.recalc_status,
                 "recalc_retry_count": strategy.recalc_retry_count,
                 "last_error": strategy.last_error,
+                "status": strategy.status,
                 "created_at": strategy.created_at.isoformat()
                 if strategy.created_at
                 else None,
@@ -205,6 +212,9 @@ def get_strategy(strategy_id):
                 else None,
             }
         )
+    except Exception as e:
+        logger.error(f"获取策略{strategy_id}失败: {e}")
+        return jsonify({"error": f"获取失败: {str(e)}"}), 500
     finally:
         session.close()
 
@@ -242,5 +252,8 @@ def get_strategy_positions(strategy_id):
                 for p in positions
             ]
         )
+    except Exception as e:
+        logger.error(f"获取策略{strategy_id}持仓失败: {e}")
+        return jsonify({"error": f"获取失败: {str(e)}"}), 500
     finally:
         session.close()
