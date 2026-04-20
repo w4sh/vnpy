@@ -106,9 +106,23 @@ chart_configs, chart_templates
 
 ### 4.2 Dirty 状态机制
 
-**状态生命周期：**
+**状态生命周期（单状态机）：**
 
-clean → dirty → recomputing → clean/failed
+```
+clean（数据一致）
+  ↓ 数据变更
+dirty（数据已变更，等待重算）
+  ↓ 重算任务触发
+recomputing（正在重算）
+  ↓ 重算成功/失败
+clean / failed
+```
+
+**状态定义：**
+- `clean`：数据一致，衍生数据准确
+- `dirty`：数据已变更，衍生数据可能过期，等待重算
+- `recomputing`：正在执行重算任务
+- `failed`：重算失败（连续失败3次），需要人工介入或等待自动重试
 
 **标记 dirty 状态：**
 
@@ -171,16 +185,19 @@ def recalc_strategy(strategy_id):
         strategy.current_capital = total_market_value
         strategy.total_return = (strategy.current_capital - strategy.initial_capital) / strategy.initial_capital
 
-        # 5. 清除 dirty 状态
+        # 5. 清除 dirty 状态，标记为 clean
         strategy.is_dirty = False
         strategy.recalc_status = 'clean'
+        strategy.recalc_retry_count = 0
+        strategy.last_error = None
         session.commit()
 
     except Exception as e:
-        # 重算失败，保留 dirty 状态
+        # 重算失败，状态变为 failed（终态）
         strategy.recalc_status = 'failed'
         strategy.recalc_retry_count += 1
         strategy.last_error = str(e)
+        # is_dirty 保持 True，表示数据仍需重算
         session.commit()
         raise
 
@@ -228,17 +245,22 @@ def recalc_position_cost(position_id):
     session.commit()
 
 def handle_recalc_failure(strategy_id, error_msg):
-    """处理重算失败"""
+    """处理重算失败
+
+    根据重试次数决定状态：
+    - 重试次数 < 3：状态保持 dirty，允许后台任务继续重试
+    - 重试次数 >= 3：状态改为 failed，停止自动重试
+    """
     strategy = session.query(Strategy).get(strategy_id)
 
-    # 最多重试3次
-    if strategy.recalc_retry_count < 3:
-        strategy.recalc_status = 'dirty'
-        strategy.recalc_retry_count += 1
-        strategy.last_error = error_msg
-    else:
+    if strategy.recalc_retry_count >= 3:
+        # 已达到最大重试次数，标记为 failed
         strategy.recalc_status = 'failed'
         strategy.last_error = f"Max retries exceeded: {error_msg}"
+    else:
+        # 保持 dirty 状态，等待下次重试
+        strategy.recalc_status = 'dirty'
+        strategy.last_error = error_msg
 
     session.commit()
 ```
