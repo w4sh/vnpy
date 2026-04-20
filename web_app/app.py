@@ -32,11 +32,16 @@ from web_app.stock_names import format_stock_symbol
 # 导入持仓管理API蓝图
 from web_app.position_api import position_bp
 
+# 导入策略API蓝图
+from web_app.strategy_api import strategy_bp
+
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # 支持中文
 
 # 注册持仓管理蓝图
 app.register_blueprint(position_bp)
+# 注册策略管理蓝图
+app.register_blueprint(strategy_bp)
 
 # 全局配置
 LAB_PATH = "/Users/w4sh8899/project/vnpy/lab_data"
