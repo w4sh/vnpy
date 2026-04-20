@@ -35,6 +35,10 @@ from web_app.position_api import position_bp
 # 导入策略API蓝图
 from web_app.strategy_api import strategy_bp
 
+# 导入定时任务
+from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
+import atexit
+
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # 支持中文
 
@@ -42,6 +46,12 @@ app.config["JSON_AS_ASCII"] = False  # 支持中文
 app.register_blueprint(position_bp)
 # 注册策略管理蓝图
 app.register_blueprint(strategy_bp)
+
+# 初始化定时任务
+init_scheduler()
+
+# 注册退出时关闭scheduler
+atexit.register(shutdown_scheduler)
 
 # 全局配置
 LAB_PATH = "/Users/w4sh8899/project/vnpy/lab_data"
