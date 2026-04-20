@@ -191,8 +191,10 @@ def compare_strategies():
     try:
         session = get_db_session()
         try:
+            # 使用joinedload预加载positions，避免N+1查询
             strategies = (
                 session.query(Strategy)
+                .options(joinedload(Strategy.positions))
                 .filter_by(status="active")
                 .order_by(Strategy.created_at.desc())
                 .all()
