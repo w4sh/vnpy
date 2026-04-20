@@ -239,32 +239,14 @@ def test_handle_recalc_failure_under_limit(db_session):
     db_session.commit()
     strategy_id = strategy.id
 
-    # 先提交数据库,然后关闭当前session
-    db_session.commit()
+    # 直接调用handle_recalc_failure,传入db_session用于测试
+    handle_recalc_failure(strategy_id, "模拟失败", session=db_session)
 
-    # 创建新的session来模拟独立事务
-    from sqlalchemy.orm import sessionmaker
-
-    Session = sessionmaker(bind=db_session.bind)
-    new_session = Session()
-
-    # 手动更新策略,模拟handle_recalc_failure的行为
-    try:
-        strategy = new_session.query(Strategy).get(strategy_id)
-        if strategy:
-            strategy.recalc_retry_count += 1
-            if strategy.recalc_retry_count < 3:
-                strategy.recalc_status = "dirty"
-                strategy.last_error = "模拟失败"
-            new_session.commit()
-    finally:
-        new_session.close()
-
-    # 验证：使用原始session查询
+    # 清除缓存并验证
     db_session.expire_all()
     strategy = db_session.query(Strategy).get(strategy_id)
     assert strategy.recalc_status == "dirty"
-    assert strategy.recalc_retry_count == 2
+    assert strategy.recalc_retry_count == 2  # 1 + 1 = 2
     assert "模拟失败" in strategy.last_error
 
 
@@ -280,29 +262,12 @@ def test_handle_recalc_failure_max_retries(db_session):
     db_session.commit()
     strategy_id = strategy.id
 
-    # 先提交数据库,然后关闭当前session
-    db_session.commit()
+    # 直接调用handle_recalc_failure,传入db_session用于测试
+    handle_recalc_failure(strategy_id, "模拟失败", session=db_session)
 
-    # 创建新的session来模拟独立事务
-    from sqlalchemy.orm import sessionmaker
-
-    Session = sessionmaker(bind=db_session.bind)
-    new_session = Session()
-
-    # 手动更新策略,模拟handle_recalc_failure的行为
-    try:
-        strategy = new_session.query(Strategy).get(strategy_id)
-        if strategy:
-            strategy.recalc_retry_count += 1
-            if strategy.recalc_retry_count >= 3:
-                strategy.recalc_status = "failed"
-                strategy.last_error = "Max retries exceeded: 模拟失败"
-            new_session.commit()
-    finally:
-        new_session.close()
-
-    # 验证：使用原始session查询
+    # 清除缓存并验证
     db_session.expire_all()
     strategy = db_session.query(Strategy).get(strategy_id)
     assert strategy.recalc_status == "failed"
     assert "Max retries exceeded" in strategy.last_error
+    # 重试次数应该保持为3,不再增加

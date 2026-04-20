@@ -192,35 +192,43 @@ class RecalculationService:
         position.updated_at = datetime.now()
 
 
-def handle_recalc_failure(strategy_id: int, error_msg: str) -> None:
+def handle_recalc_failure(strategy_id: int, error_msg: str, session=None) -> None:
     """处理重算失败（独立事务）
 
     Args:
         strategy_id: 策略ID
         error_msg: 错误信息
+        session: 可选的session参数,用于测试环境
     """
     from web_app.models import Strategy, get_db_session
 
-    session = get_db_session()
+    # 如果没有传入session,创建新的(生产环境)
+    should_close = False
+    if session is None:
+        session = get_db_session()
+        should_close = True
+
     try:
         strategy = session.query(Strategy).get(strategy_id)
         if not strategy:
             logger.error(f"策略{strategy_id}不存在，无法处理失败")
             return
 
-        # 增加重试计数
-        strategy.recalc_retry_count += 1
-
+        # 先判断当前重试次数
         if strategy.recalc_retry_count >= 3:
-            # 已达到最大重试次数，标记为failed
+            # 已经达到最大重试次数，标记为failed
             strategy.recalc_status = "failed"
             strategy.last_error = f"Max retries exceeded: {error_msg}"
             logger.error(f"策略{strategy_id}达到最大重试次数")
         else:
+            # 增加重试计数
+            strategy.recalc_retry_count += 1
             # 保持dirty状态，等待下次重试
             strategy.recalc_status = "dirty"
             strategy.last_error = error_msg
-            logger.warning(f"策略{strategy_id}重算失败，将重试")
+            logger.warning(
+                f"策略{strategy_id}重算失败(第{strategy.recalc_retry_count}次)，将重试"
+            )
 
         session.commit()
 
@@ -228,4 +236,6 @@ def handle_recalc_failure(strategy_id: int, error_msg: str) -> None:
         session.rollback()
         logger.error(f"处理策略{strategy_id}失败时出错: {e}")
     finally:
-        session.close()
+        # 只有关闭我们创建的session
+        if should_close:
+            session.close()
