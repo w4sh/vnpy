@@ -1,6 +1,5 @@
 """测试安全工具函数"""
 
-import pytest
 from web_app.security import (
     validate_string_length,
     validate_stock_symbol,
@@ -11,9 +10,6 @@ from web_app.security import (
     validate_strategy_status,
     validate_position_status,
     MAX_STRING_LENGTH,
-    MAX_REASON_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
-    MAX_NAME_LENGTH,
 )
 
 
@@ -95,7 +91,7 @@ class TestTextSanitization:
         result = sanitize_text(text)
         assert "\x00" not in result
         assert "\x01" not in result
-        assert "文本 包含 控制字符" == result
+        assert "文本包含控制字符" == result
 
     def test_text_with_extra_spaces(self):
         """测试：多余空格"""

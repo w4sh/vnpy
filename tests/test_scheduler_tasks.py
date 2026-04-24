@@ -9,24 +9,36 @@ from web_app.scheduler_tasks import recalc_dirty_strategies, recover_stuck_strat
 
 
 @pytest.fixture
-def db_session():
-    """创建测试数据库和会话"""
+def db_engine():
+    """创建测试数据库引擎"""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def db_session(db_engine):
+    """创建测试数据库会话"""
+    Session = sessionmaker(bind=db_engine)
     session = Session()
     yield session
     session.close()
 
 
-def test_recalc_dirty_strategies(db_session, monkeypatch):
-    """测试：定时重算dirty策略"""
+@pytest.fixture
+def mock_scheduler_session(db_engine, monkeypatch):
+    """Mock get_db_session 返回新会话（同一引擎），避免调度器关闭测试会话"""
 
-    # Mock get_db_session 返回我们的测试session
     def mock_get_db_session():
-        return db_session
+        Session = sessionmaker(bind=db_engine)
+        return Session()
 
     monkeypatch.setattr("web_app.scheduler_tasks.get_db_session", mock_get_db_session)
+
+
+def test_recalc_dirty_strategies(db_session, mock_scheduler_session):
+    """测试：定时重算dirty策略"""
 
     # 创建3个dirty策略
     strategies = []
@@ -38,7 +50,7 @@ def test_recalc_dirty_strategies(db_session, monkeypatch):
             status="active",
         )
         db_session.add(strategy)
-        db_session.flush()  # 确保strategy有ID
+        db_session.flush()
 
         position = Position(
             symbol="000001.SZSE",
@@ -50,7 +62,6 @@ def test_recalc_dirty_strategies(db_session, monkeypatch):
         )
         db_session.add(position)
 
-        # 添加买入交易记录
         txn = Transaction(
             position_id=position.id,
             strategy_id=strategy.id,
@@ -77,14 +88,8 @@ def test_recalc_dirty_strategies(db_session, monkeypatch):
         assert strategy.recalc_status == "clean"
 
 
-def test_recalc_dirty_strategies_ignores_deleted(db_session, monkeypatch):
+def test_recalc_dirty_strategies_ignores_deleted(db_session, mock_scheduler_session):
     """测试：重算任务忽略已删除的策略"""
-
-    # Mock get_db_session
-    def mock_get_db_session():
-        return db_session
-
-    monkeypatch.setattr("web_app.scheduler_tasks.get_db_session", mock_get_db_session)
 
     # 创建一个dirty策略和一个已删除的dirty策略
     active_strategy = Strategy(
@@ -142,14 +147,8 @@ def test_recalc_dirty_strategies_ignores_deleted(db_session, monkeypatch):
     assert deleted_strategy.recalc_status == "dirty"
 
 
-def test_recover_stuck_strategies(db_session, monkeypatch):
+def test_recover_stuck_strategies(db_session, mock_scheduler_session):
     """测试：恢复卡死策略"""
-
-    # Mock get_db_session
-    def mock_get_db_session():
-        return db_session
-
-    monkeypatch.setattr("web_app.scheduler_tasks.get_db_session", mock_get_db_session)
 
     # 创建超时的recomputing策略
     strategy = Strategy(
@@ -157,7 +156,7 @@ def test_recover_stuck_strategies(db_session, monkeypatch):
         initial_capital=1000000,
         recalc_status="recomputing",
         status="active",
-        updated_at=datetime.now() - timedelta(minutes=35),  # 35分钟前
+        updated_at=datetime.now() - timedelta(minutes=35),
     )
     db_session.add(strategy)
     db_session.commit()
@@ -171,14 +170,8 @@ def test_recover_stuck_strategies(db_session, monkeypatch):
     assert "重算超时" in strategy.last_error
 
 
-def test_recover_stuck_strategies_ignores_deleted(db_session, monkeypatch):
+def test_recover_stuck_strategies_ignores_deleted(db_session, mock_scheduler_session):
     """测试：恢复任务忽略已删除的策略"""
-
-    # Mock get_db_session
-    def mock_get_db_session():
-        return db_session
-
-    monkeypatch.setattr("web_app.scheduler_tasks.get_db_session", mock_get_db_session)
 
     # 创建一个超时的活跃策略和一个超时的已删除策略
     active_strategy = Strategy(
@@ -214,14 +207,8 @@ def test_recover_stuck_strategies_ignores_deleted(db_session, monkeypatch):
     assert deleted_strategy.last_error is None
 
 
-def test_no_recovery_for_recent_recomputing(db_session, monkeypatch):
+def test_no_recovery_for_recent_recomputing(db_session, mock_scheduler_session):
     """测试：不重置最近的recomputing"""
-
-    # Mock get_db_session
-    def mock_get_db_session():
-        return db_session
-
-    monkeypatch.setattr("web_app.scheduler_tasks.get_db_session", mock_get_db_session)
 
     # 创建正常的recomputing策略（5分钟前）
     strategy = Strategy(

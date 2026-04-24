@@ -4,17 +4,17 @@
 定期从Tushare Pro获取最新行情并更新数据库
 """
 
+import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 添加项目路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from data_feed.quote_service import get_quote_service
-from models import Position, get_db_session
-from datetime import datetime
-import argparse
+from data_feed.quote_service import get_quote_service  # noqa: E402
+from models import Position, get_db_session  # noqa: E402
 
 
 def update_position_prices(token: str, dry_run: bool = False):
@@ -90,7 +90,7 @@ def update_position_prices(token: str, dry_run: bool = False):
 
         # 显示使用情况
         usage = quote_service.get_usage_info()
-        print(f"\nAPI使用情况:")
+        print("\nAPI使用情况:")
         print(f"  本次请求: {usage['request_count']} 次")
         print(f"  剩余额度: {usage['remaining']} 次")
         print(f"  每日限额: {usage['daily_limit']} 次")

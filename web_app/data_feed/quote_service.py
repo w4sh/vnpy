@@ -5,9 +5,7 @@ Tushare Pro 实时报价服务
 """
 
 import tushare as ts
-import pandas as pd
-from datetime import datetime, timedelta
-from typing import Optional, Dict, List
+from datetime import datetime
 import time
 
 
@@ -79,7 +77,7 @@ class TushareQuoteService:
         self.last_request_time = now
         self.request_count += 1
 
-    def get_stock_quote(self, ts_code: str) -> Optional[Dict]:
+    def get_stock_quote(self, ts_code: str) -> dict | None:
         """
         获取股票实时行情
 
@@ -125,7 +123,7 @@ class TushareQuoteService:
             print(f"获取 {ts_code} 行情失败: {str(e)}")
             return None
 
-    def get_futures_quote(self, ts_code: str) -> Optional[Dict]:
+    def get_futures_quote(self, ts_code: str) -> dict | None:
         """
         获取期货实时行情
 
@@ -168,7 +166,7 @@ class TushareQuoteService:
             print(f"获取 {ts_code} 期货行情失败: {str(e)}")
             return None
 
-    def batch_update_quotes(self, symbols: List[str]) -> Dict[str, Optional[Dict]]:
+    def batch_update_quotes(self, symbols: list[str]) -> dict[str, dict | None]:
         """
         批量更新行情
 
@@ -201,7 +199,7 @@ class TushareQuoteService:
 
         return results
 
-    def get_usage_info(self) -> Dict:
+    def get_usage_info(self) -> dict:
         """获取当前使用情况"""
         return {
             "token": self.token[:20] + "...",  # 部分隐藏
@@ -215,7 +213,7 @@ class TushareQuoteService:
 
 
 # 单例实例
-_quote_service: Optional[TushareQuoteService] = None
+_quote_service: TushareQuoteService | None = None
 
 
 def get_quote_service(token: str = None) -> TushareQuoteService:

@@ -7,7 +7,6 @@ from web_app.models import (
     Position,
     Strategy,
     Base,
-    get_db_session,
 )
 from web_app.position_api import position_bp
 from flask import Flask

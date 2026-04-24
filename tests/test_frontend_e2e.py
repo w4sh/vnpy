@@ -12,7 +12,6 @@
 7. 响应式布局
 """
 
-import asyncio
 import time
 import subprocess
 import sys
@@ -65,7 +64,7 @@ class FrontendE2ETest:
         )
 
         # 等待应用启动
-        for i in range(10):
+        for _i in range(10):
             try:
                 import requests
 
@@ -73,7 +72,7 @@ class FrontendE2ETest:
                 if response.status_code == 200:
                     print(f"✅ Flask应用已启动 (PID: {self.flask_process.pid})")
                     return True
-            except:
+            except Exception:
                 time.sleep(1)
 
         raise RuntimeError("Flask应用启动失败")
@@ -130,7 +129,6 @@ class FrontendE2ETest:
             session.flush()
 
             # 创建持仓
-            import random
 
             stocks = [
                 ("000001.SZSE", "平安银行", 1000, 10.50, 12.30),
@@ -160,7 +158,7 @@ class FrontendE2ETest:
                 session.add(position)
 
             session.commit()
-            print(f"✅ 测试数据创建成功（2个策略，5个持仓）")
+            print("✅ 测试数据创建成功（2个策略，5个持仓）")
 
         except Exception as e:
             session.rollback()

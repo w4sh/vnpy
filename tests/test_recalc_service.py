@@ -1,12 +1,11 @@
 """测试重算服务核心逻辑"""
 
 import pytest
-from datetime import datetime, timedelta, date
+from datetime import date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from web_app.models import Base, Strategy, Position, Transaction
 from web_app.recalc_service import RecalculationService, handle_recalc_failure
-from web_app.models import get_db_session
 
 
 @pytest.fixture
@@ -213,12 +212,12 @@ def test_recalc_strategy_rollback_on_error(db_session):
 
     # 模拟重算失败
     def mock_recalc_position(position):
-        raise Exception("模拟失败")
+        raise RuntimeError("模拟失败")
 
     service._recalc_position_cost = mock_recalc_position
 
     # 执行重算（应该失败）
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         service.recalc_strategy(strategy.id)
 
     # 验证数据未改变（回滚成功）

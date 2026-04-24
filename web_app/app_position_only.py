@@ -4,9 +4,7 @@ vn.py 量化交易Web界面 - 简化版
 仅提供持仓管理功能的Web应用（不需要vnpy alpha模块）
 """
 
-from flask import Flask, render_template, request, jsonify
-from datetime import datetime
-import sys
+from flask import Flask, render_template, jsonify
 from pathlib import Path
 
 # 导入持仓管理API蓝图

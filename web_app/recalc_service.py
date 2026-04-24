@@ -7,9 +7,8 @@
 - 自动重试和失败处理
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import exc
 import logging
 
 logger = logging.getLogger(__name__)

@@ -1,15 +1,12 @@
 """测试仪表盘数据分析API"""
 
 import pytest
-from datetime import datetime, timedelta, date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from web_app.models import (
     Base,
     Strategy,
     Position,
-    Transaction,
-    get_db_session,
 )
 from web_app.analytics_api import analytics_bp
 from flask import Flask
@@ -85,7 +82,7 @@ def test_get_portfolio_analytics(app, db_session_factory):
 
             assert response.status_code == 200
             data = response.get_json()
-            assert data["success"] == True
+            assert data["success"] is True
             assert "analytics" in data
             assert "summary" in data["analytics"]
             assert data["analytics"]["summary"]["total_assets"] == 12000
@@ -137,7 +134,7 @@ def test_get_strategy_analytics(app, db_session_factory):
 
             assert response.status_code == 200
             data = response.get_json()
-            assert data["success"] == True
+            assert data["success"] is True
             assert data["analytics"]["strategy_id"] == strategy.id
             assert data["analytics"]["strategy_name"] == "测试策略"
             assert data["analytics"]["initial_capital"] == 1000000
@@ -203,7 +200,7 @@ def test_compare_strategies(app, db_session_factory):
 
             assert response.status_code == 200
             data = response.get_json()
-            assert data["success"] == True
+            assert data["success"] is True
             assert len(data["comparison"]) == 2
             assert data["comparison"][0]["strategy_name"] == "策略A"
             assert data["comparison"][1]["strategy_name"] == "策略B"
@@ -266,7 +263,7 @@ def test_analytics_ignores_deleted_strategies(app, db_session_factory):
 
             assert response.status_code == 200
             data = response.get_json()
-            assert data["success"] == True
+            assert data["success"] is True
             # 应该只返回活跃策略
             assert len(data["comparison"]) == 1
             assert data["comparison"][0]["strategy_name"] == "活跃策略"

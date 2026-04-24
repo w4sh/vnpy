@@ -4,7 +4,6 @@
 """
 
 import re
-from typing import Optional
 
 
 # 输入长度限制
@@ -15,8 +14,8 @@ MAX_NAME_LENGTH = 100
 
 
 def validate_string_length(
-    value: Optional[str], max_length: int, field_name: str
-) -> tuple[bool, Optional[str]]:
+    value: str | None, max_length: int, field_name: str
+) -> tuple[bool, str | None]:
     """验证字符串长度
 
     Args:
@@ -36,7 +35,7 @@ def validate_string_length(
     return True, None
 
 
-def validate_stock_symbol(symbol: str) -> tuple[bool, Optional[str]]:
+def validate_stock_symbol(symbol: str) -> tuple[bool, str | None]:
     """验证股票代码格式
 
     支持格式：
@@ -83,7 +82,7 @@ def sanitize_text(text: str) -> str:
     return text
 
 
-def validate_positive_number(value, field_name: str) -> tuple[bool, Optional[str]]:
+def validate_positive_number(value, field_name: str) -> tuple[bool, str | None]:
     """验证正数
 
     Args:
@@ -102,7 +101,7 @@ def validate_positive_number(value, field_name: str) -> tuple[bool, Optional[str
         return False, f"{field_name}必须是有效的数字"
 
 
-def validate_non_negative_number(value, field_name: str) -> tuple[bool, Optional[str]]:
+def validate_non_negative_number(value, field_name: str) -> tuple[bool, str | None]:
     """验证非负数
 
     Args:
@@ -121,7 +120,7 @@ def validate_non_negative_number(value, field_name: str) -> tuple[bool, Optional
         return False, f"{field_name}必须是有效的数字"
 
 
-def validate_transaction_type(transaction_type: str) -> tuple[bool, Optional[str]]:
+def validate_transaction_type(transaction_type: str) -> tuple[bool, str | None]:
     """验证交易类型
 
     Args:
@@ -136,7 +135,7 @@ def validate_transaction_type(transaction_type: str) -> tuple[bool, Optional[str
     return True, None
 
 
-def validate_strategy_status(status: str) -> tuple[bool, Optional[str]]:
+def validate_strategy_status(status: str) -> tuple[bool, str | None]:
     """验证策略状态
 
     Args:
@@ -151,7 +150,7 @@ def validate_strategy_status(status: str) -> tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_position_status(status: str) -> tuple[bool, Optional[str]]:
+def validate_position_status(status: str) -> tuple[bool, str | None]:
     """验证持仓状态
 
     Args:

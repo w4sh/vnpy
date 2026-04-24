@@ -4,11 +4,10 @@
 提供投资组合统计、策略分析、风险计算等高级分析功能
 """
 
-from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
+from flask import Blueprint, jsonify
+from datetime import datetime
 from web_app.models import Position, Strategy, Transaction, get_db_session
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func
 import numpy as np
 
 # 创建蓝图
@@ -136,7 +135,6 @@ def get_strategy_analytics(strategy_id):
 
             # 策略统计
             total_value = sum(float(p.market_value or 0) for p in positions)
-            total_cost = sum(float(p.cost_price or 0) * p.quantity for p in positions)
             total_return = total_value - float(strategy.initial_capital)
             total_return_pct = (
                 (total_return / float(strategy.initial_capital) * 100)
@@ -205,9 +203,6 @@ def compare_strategies():
                 positions = [p for p in strategy.positions if p.status == "holding"]
 
                 total_value = sum(float(p.market_value or 0) for p in positions)
-                total_cost = sum(
-                    float(p.cost_price or 0) * p.quantity for p in positions
-                )
                 total_return = total_value - float(strategy.initial_capital)
                 total_return_pct = (
                     (total_return / float(strategy.initial_capital) * 100)

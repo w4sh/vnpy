@@ -6,12 +6,11 @@ Demonstrates how to write unit tests for vnpy core modules.
 
 import pytest
 from datetime import datetime
+from vnpy.trader.constant import Direction, Exchange, Offset, Product, Status
 from vnpy.trader.object import (
     TickData,
     OrderData,
-    TradeData,
     PositionData,
-    AccountData,
     ContractData,
 )
 
@@ -24,7 +23,7 @@ class TestTickData:
         tick = TickData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
+            exchange=Exchange.CFFEX,
             datetime=datetime(2025, 1, 10, 9, 30, 0),
             name="沪深300指数2501",
             last_price=3500.0,
@@ -42,7 +41,7 @@ class TestTickData:
         tick = TickData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
+            exchange=Exchange.CFFEX,
             datetime=datetime.now(),
         )
 
@@ -57,26 +56,26 @@ class TestOrderData:
         order = OrderData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
-            orderID="12345",
-            direction="LONG",
-            offset="OPEN",
+            exchange=Exchange.CFFEX,
+            orderid="12345",
+            direction=Direction.LONG,
+            offset=Offset.OPEN,
             price=3500.0,
             volume=1,
-            status="NOTTRADED",
+            status=Status.NOTTRADED,
         )
 
         assert order.symbol == "IF2501"
-        assert order.direction.value == "LONG"
-        assert order.status.value == "NOTTRADED"
+        assert order.direction == Direction.LONG
+        assert order.status == Status.NOTTRADED
 
     def test_order_vt_symbol(self):
         """测试 vt_symbol 属性"""
         order = OrderData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
-            orderID="12345",
+            exchange=Exchange.CFFEX,
+            orderid="12345",
         )
 
         assert order.vt_symbol == "IF2501.CFFEX"
@@ -91,15 +90,15 @@ class TestPositionData:
         position = PositionData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
-            direction="LONG",
+            exchange=Exchange.CFFEX,
+            direction=Direction.LONG,
             volume=10,
             price=3500.0,
             pnl=1000.0,
         )
 
         assert position.symbol == "IF2501"
-        assert position.direction.value == "LONG"
+        assert position.direction == Direction.LONG
         assert position.volume == 10
 
     def test_position_vt_symbol(self):
@@ -107,12 +106,12 @@ class TestPositionData:
         position = PositionData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
-            direction="LONG",
+            exchange=Exchange.CFFEX,
+            direction=Direction.LONG,
         )
 
         assert position.vt_symbol == "IF2501.CFFEX"
-        assert position.vt_position_name == "IF2501.CFFEX.LONG"
+        assert position.vt_positionid == f"CTP.IF2501.CFFEX.{Direction.LONG.value}"
 
 
 @pytest.mark.unit
@@ -124,9 +123,9 @@ class TestContractData:
         contract = ContractData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
+            exchange=Exchange.CFFEX,
             name="沪深300指数2501",
-            product="期货",
+            product=Product.FUTURES,
             size=200,
             pricetick=0.2,
             min_volume=1,
@@ -146,7 +145,7 @@ class TestDataIntegration:
         tick = TickData(
             gateway_name="CTP",
             symbol="IF2501",
-            exchange="CFFEX",
+            exchange=Exchange.CFFEX,
             datetime=datetime.now(),
             last_price=3500.0,
             ask_price_1=3500.2,

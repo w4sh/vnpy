@@ -4,10 +4,9 @@
 提供价格更新、行情查询等功能
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from data_feed.quote_service import get_quote_service
 from data_feed.update_prices import update_position_prices
-from models import Position, get_db_session
 from datetime import datetime
 import traceback
 

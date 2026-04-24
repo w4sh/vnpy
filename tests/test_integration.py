@@ -10,7 +10,7 @@
 """
 
 import pytest
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from web_app.models import (
@@ -18,11 +18,9 @@ from web_app.models import (
     Strategy,
     Position,
     Transaction,
-    StrategyAuditLog,
     TransactionAuditLog,
-    get_db_session,
 )
-from web_app.recalc_service import RecalculationService, mark_strategy_dirty
+from web_app.recalc_service import RecalculationService
 import tempfile
 import os
 
@@ -208,7 +206,11 @@ class TestRecalculationMechanism:
             session.commit()
 
             # 标记为dirty
-            mark_strategy_dirty(strategy.id, session)
+            recalc_service = RecalculationService(session)
+            recalc_service.mark_strategy_dirty(strategy.id)
+
+            # mark_strategy_dirty只修改内存，需要手动提交
+            session.commit()
 
             # 验证
             session.expire_all()
@@ -224,7 +226,7 @@ class TestRecalculationMechanism:
             # 创建策略和持仓
             strategy = Strategy(
                 name="测试",
-                initial_capital=1000000,
+                initial_capital=10000,
                 recalc_status="dirty",
                 status="active",
             )
@@ -240,14 +242,28 @@ class TestRecalculationMechanism:
                 status="holding",
             )
             session.add(position)
+            session.flush()
+
+            # 添加买入交易记录（重算服务依赖交易计算成本）
+            transaction = Transaction(
+                position_id=position.id,
+                strategy_id=strategy.id,
+                transaction_type="buy",
+                symbol="000001.SZSE",
+                quantity=1000,
+                price=10.00,
+                fee=5.0,
+                amount=10005,
+                transaction_date=date.today(),
+            )
+            session.add(transaction)
             session.commit()
 
-            # 执行重算
+            # 执行重算（成功时不返回值，失败时raise异常）
             recalc_service = RecalculationService(session)
-            result = recalc_service.recalc_strategy(strategy.id)
+            recalc_service.recalc_strategy(strategy.id)
 
             # 验证
-            assert result is True
             session.expire_all()
             updated = session.query(Strategy).get(strategy.id)
             assert updated.recalc_status == "clean"
@@ -323,7 +339,11 @@ class TestTransactionModification:
             session.commit()
 
             # 标记策略为dirty
-            mark_strategy_dirty(strategy.id, session)
+            recalc_service = RecalculationService(session)
+            recalc_service.mark_strategy_dirty(strategy.id)
+
+            # mark_strategy_dirty只修改内存，需要手动提交
+            session.commit()
 
             # 验证
             session.expire_all()

@@ -10,7 +10,6 @@ from web_app.models import (
     Position,
     Strategy,
     Transaction,
-    RiskMetric,
     TransactionAuditLog,
     get_db_session,
 )

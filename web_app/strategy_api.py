@@ -266,7 +266,7 @@ def get_strategy_positions(strategy_id):
 @strategy_bp.route("/api/strategies/<int:strategy_id>/restore", methods=["POST"])
 def restore_strategy(strategy_id):
     """恢复已删除的策略
-    
+
     将status从'deleted'改回'active'
     """
     session = get_db_session()
@@ -274,13 +274,13 @@ def restore_strategy(strategy_id):
         strategy = session.query(Strategy).get(strategy_id)
         if not strategy:
             return jsonify({"error": "策略不存在"}), 404
-        
+
         # 只能恢复已删除的策略
         if strategy.status != "deleted":
             return jsonify({"error": "只能恢复已删除的策略"}), 400
-        
+
         reason = request.args.get("reason", "用户恢复")
-        
+
         # 记录审计日志
         audit_log = StrategyAuditLog(
             strategy_id=strategy_id,
@@ -291,14 +291,14 @@ def restore_strategy(strategy_id):
             changed_at=datetime.now(),
         )
         session.add(audit_log)
-        
+
         # 恢复策略
         strategy.status = "active"
         strategy.updated_at = datetime.now()
         session.commit()
-        
+
         logger.info(f"策略{strategy_id}已恢复")
-        
+
         return jsonify({
             "id": strategy_id,
             "status": "active",

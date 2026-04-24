@@ -6,7 +6,7 @@
 
 import pytest
 import requests
-from datetime import datetime, timedelta, date
+from datetime import date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from web_app.models import (
@@ -84,13 +84,13 @@ class TestFrontendBackendIntegration:
                 response = requests.get("http://localhost:5001", timeout=2)
                 if response.status_code == 200:
                     break
-            except:
+            except Exception as err:
                 if i < max_retries - 1:
                     time.sleep(2)
                 else:
                     proc.terminate()
                     proc.wait()
-                    raise RuntimeError("Flask应用启动失败")
+                    raise RuntimeError("Flask应用启动失败") from err
 
         yield "http://localhost:5001"
 
@@ -131,7 +131,7 @@ class TestFrontendBackendIntegration:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["success"] == True
+        assert data["success"] is True
         assert "analytics" in data
 
         # 如果有数据，验证summary字段
@@ -166,7 +166,7 @@ class TestFrontendBackendIntegration:
         data = response.json()
 
         # API返回格式: {"positions": [...], "success": true}
-        assert data["success"] == True
+        assert data["success"] is True
         assert isinstance(data["positions"], list)
         assert len(data["positions"]) == 1
         assert data["positions"][0]["symbol"] == "000001.SZSE"
@@ -230,7 +230,7 @@ class TestFrontendBackendIntegration:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
 
         # 验证前端能解析的数据结构
         assert "analytics" in data
@@ -356,10 +356,10 @@ def run_integration_tests():
 
     # 检查Flask应用是否已运行
     try:
-        response = requests.get("http://localhost:5001", timeout=2)
+        requests.get("http://localhost:5001", timeout=2)
         app_running = True
         print("✅ Flask应用正在运行")
-    except:
+    except Exception:
         app_running = False
         print("⚠️  Flask应用未运行，请先手动启动:")
         print("   cd /Users/w4sh8899/project/vnpy")
