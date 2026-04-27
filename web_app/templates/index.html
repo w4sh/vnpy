@@ -463,6 +463,8 @@
             <button class="nav-btn" onclick="showPage('picker')">智能选股</button>
             <button class="nav-btn" onclick="showPage('compare')">策略对比</button>
             <button class="nav-btn" onclick="showPage('position')">持仓管理</button>
+            <button class="nav-btn" onclick="showPage('candidate')">股票候选</button>
+            <button class="nav-btn" onclick="showPage('indicators')">前瞻指标</button>
         </div>
 
         <div class="content">
@@ -746,6 +748,118 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 股票候选页面 -->
+            <div id="candidate-page" class="page">
+                <div class="section">
+                    <h3>📊 股票候选推荐</h3>
+                    <div class="info-box" id="candidate-summary" style="display: none;">
+                        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                            <div>
+                                <span style="color: #666;">筛选日期：</span>
+                                <strong id="candidate-date">-</strong>
+                            </div>
+                            <div>
+                                <span style="color: #666;">股票池规模：</span>
+                                <strong id="candidate-pool-size">-</strong>
+                            </div>
+                            <div>
+                                <span style="color: #666;">筛选耗时：</span>
+                                <strong id="candidate-elapsed">-</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section" id="candidate-results-section" style="display: none;">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>股票代码</th>
+                                <th>名称</th>
+                                <th>收盘价</th>
+                                <th>综合评分</th>
+                                <th>动量</th>
+                                <th>趋势</th>
+                                <th>量价</th>
+                                <th>波动</th>
+                                <th>总收益</th>
+                                <th>最大回撤</th>
+                                <th>夏普</th>
+                            </tr>
+                        </thead>
+                        <tbody id="candidate-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div id="candidate-detail-panel" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                    <h4 style="color: #667eea; margin-bottom: 15px;">因子得分详情</h4>
+                    <div style="display: flex; justify-content: center;">
+                        <canvas id="candidate-radar-chart" width="300" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 前瞻指标页面 -->
+            <div id="indicators-page" class="page" style="display:none;">
+                <div class="container-fluid mt-3">
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">前瞻指标仪表盘</h5>
+                                    <small id="indicator-date" class="text-muted"></small>
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover mb-0" id="indicator-table">
+                                        <thead>
+                                            <tr>
+                                                <th>排名</th>
+                                                <th>代码</th>
+                                                <th>名称</th>
+                                                <th>综合评分</th>
+                                                <th>PE倒数</th>
+                                                <th>PB倒数</th>
+                                                <th>PS倒数</th>
+                                                <th>基本面评分</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="indicator-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 因子历史曲线 -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">因子评分历史曲线</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row mb-2">
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" id="chart-symbol"
+                                                   placeholder="输入股票代码，如 600036.SSE">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-primary btn-sm" onclick="loadFactorHistory()">
+                                                查询历史
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style="height:350px;">
+                                        <canvas id="factor-history-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -909,6 +1023,10 @@
             $('#' + pageName + '-page').addClass('active');
             $('.nav-btn').removeClass('active');
             event.target.classList.add('active');
+
+            if (pageName === 'candidate') {
+                loadCandidates();
+            }
         }
 
         // 加载策略列表
@@ -1763,6 +1881,7 @@
         // 全局图表实例
         let positionDistributionChart = null;
         let profitLossChart = null;
+        let candidateRadarChart = null;
 
         // 初始化图表
         function initCharts() {
@@ -1917,6 +2036,283 @@
                 initCharts();
             }, 500);
         });
+
+        // ==================== 股票候选功能 ====================
+
+        // 加载候选股票数据
+        function loadCandidates() {
+            const summaryDiv = $('#candidate-summary');
+            const resultsSection = $('#candidate-results-section');
+            const tableBody = $('#candidate-table-body');
+
+            tableBody.html('<tr><td colspan="12"><div class="loading">加载候选数据中</div></td></tr>');
+
+            $.get('/api/candidates/latest', function(response) {
+                if (!response.success) {
+                    tableBody.html(`<tr><td colspan="12"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
+                    summaryDiv.hide();
+                    resultsSection.hide();
+                    return;
+                }
+
+                summaryDiv.show();
+                $('#candidate-date').text(response.screening_date);
+                $('#candidate-pool-size').text(response.stock_pool_size + ' 只');
+                $('#candidate-elapsed').text(response.elapsed_seconds.toFixed(1) + ' 秒');
+
+                if (response.results && response.results.length > 0) {
+                    resultsSection.show();
+                    renderCandidatesTable(response.results);
+                } else {
+                    resultsSection.show();
+                    tableBody.html('<tr><td colspan="12" style="text-align: center; padding: 40px; color: #999;">暂无候选股票数据</td></tr>');
+                }
+            }).fail(function(xhr) {
+                tableBody.html(`<tr><td colspan="12"><div class="error">请求失败: ${xhr.statusText || '网络错误'}</div></td></tr>`);
+                summaryDiv.hide();
+                resultsSection.hide();
+            });
+        }
+
+        // 渲染候选股票表格
+        function renderCandidatesTable(results) {
+            const tableBody = $('#candidate-table-body');
+            let html = '';
+
+            results.forEach(function(item) {
+                const returnClass = item.total_return >= 0 ? 'positive' : 'negative';
+                const ddClass = item.max_drawdown <= 0 ? 'negative' : 'positive';
+                const sharpeClass = item.sharpe_ratio >= 0 ? 'positive' : 'negative';
+
+                html += `
+                    <tr style="cursor: pointer;" onclick="showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score})">
+                        <td>${item.rank}</td>
+                        <td><strong>${escapeHtml(item.symbol)}</strong></td>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td>${item.current_price != null ? '¥' + item.current_price.toFixed(2) : '-'}</td>
+                        <td><strong>${item.score.toFixed(1)}</strong></td>
+                        <td>${item.momentum_score.toFixed(1)}</td>
+                        <td>${item.trend_score.toFixed(1)}</td>
+                        <td>${item.volume_score.toFixed(1)}</td>
+                        <td>${item.volatility_score.toFixed(1)}</td>
+                        <td class="${returnClass}">${formatPercent(item.total_return)}</td>
+                        <td class="${ddClass}">${formatPercent(item.max_drawdown)}</td>
+                        <td class="${sharpeClass}">${item.sharpe_ratio != null ? item.sharpe_ratio.toFixed(2) : '-'}</td>
+                    </tr>
+                `;
+            });
+
+            tableBody.html(html);
+        }
+
+        // 显示候选股票详情面板（雷达图）
+        function showCandidateDetail(rank, symbol, name, momentum, trend, volume, volatility) {
+            const panel = $('#candidate-detail-panel');
+
+            // 切换显示/隐藏
+            if (panel.is(':visible') && panel.data('current-rank') === rank) {
+                panel.hide();
+                return;
+            }
+
+            panel.show();
+            panel.data('current-rank', rank);
+
+            // 更新标题
+            panel.find('h4').text(`${rank}. ${symbol} - ${name} 因子得分详情`);
+
+            // 销毁旧图表
+            const canvas = document.getElementById('candidate-radar-chart');
+            if (candidateRadarChart) {
+                candidateRadarChart.destroy();
+                candidateRadarChart = null;
+            }
+
+            // 创建雷达图
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                candidateRadarChart = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['动量', '趋势', '量价', '波动'],
+                        datasets: [{
+                            label: symbol,
+                            data: [momentum, trend, volume, volatility],
+                            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: 'rgba(102, 126, 234, 1)'
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: true,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    stepSize: 20,
+                                    backdropColor: 'transparent'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 加载历史候选数据
+        function loadHistory(date) {
+            // TODO: 暂未实现，后续扩展
+            console.log('loadHistory called with date:', date);
+        }
+
+        // 格式化百分比值
+        function formatPercent(value) {
+            if (value == null) return '-';
+            const sign = value >= 0 ? '+' : '';
+            return sign + (value * 100).toFixed(2) + '%';
+        }
+
+        // HTML 转义工具函数
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // ============ 前瞻指标页面 ============
+        let historyChart = null;
+
+        async function loadFactorSnapshot() {
+            try {
+                const resp = await fetch('/api/factors/snapshot');
+                const data = await resp.json();
+                if (!data.data) return;
+
+                if (data.data.length > 0) {
+                    $('#indicator-date').text('数据日期: ' + (data.data[0].trade_date || '-'));
+                }
+
+                const tbody = $('#indicator-tbody');
+                tbody.empty();
+
+                data.data.forEach(function(row, i) {
+                    const pe = row.pe_ttm ? parseFloat(row.pe_ttm).toFixed(4) : '-';
+                    const pb = row.pb ? parseFloat(row.pb).toFixed(4) : '-';
+                    const ps = row.ps_ttm ? parseFloat(row.ps_ttm).toFixed(4) : '-';
+                    const fScore = row.fundamental_score
+                        ? parseFloat(row.fundamental_score).toFixed(1)
+                        : '-';
+                    const final = row.final_score
+                        ? parseFloat(row.final_score).toFixed(1)
+                        : '-';
+
+                    const scoreNum = parseFloat(final);
+                    const scoreColor = scoreNum >= 70 ? 'text-success'
+                        : scoreNum >= 40 ? 'text-warning' : 'text-danger';
+
+                    tbody.append(
+                        '<tr style="cursor:pointer" onclick="$(\'#chart-symbol\').val(\'' + row.vt_symbol + '\'); loadFactorHistory();">' +
+                        '<td>' + (i + 1) + '</td>' +
+                        '<td><strong>' + row.vt_symbol + '</strong></td>' +
+                        '<td>-</td>' +
+                        '<td class="' + scoreColor + ' fw-bold">' + final + '</td>' +
+                        '<td>' + pe + '</td>' +
+                        '<td>' + pb + '</td>' +
+                        '<td>' + ps + '</td>' +
+                        '<td>' + fScore + '</td>' +
+                        '</tr>'
+                    );
+                });
+            } catch (err) {
+                console.error('加载因子快照失败:', err);
+            }
+        }
+
+        async function loadFactorHistory() {
+            const symbol = $('#chart-symbol').val().trim();
+            if (!symbol) {
+                alert('请输入股票代码');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/factors/history?symbol=' + encodeURIComponent(symbol) + '&days=60');
+                const data = await resp.json();
+                if (!data.data || data.data.length === 0) {
+                    alert('无历史数据');
+                    return;
+                }
+
+                const dates = data.data.map(function(r) { return r.trade_date; });
+                const peSeries = data.data.map(function(r) { return r.pe_ttm ? parseFloat(r.pe_ttm).toFixed(4) : null; });
+                const pbSeries = data.data.map(function(r) { return r.pb ? parseFloat(r.pb).toFixed(4) : null; });
+                const psSeries = data.data.map(function(r) { return r.ps_ttm ? parseFloat(r.ps_ttm).toFixed(4) : null; });
+
+                const ctx = document.getElementById('factor-history-chart').getContext('2d');
+                if (historyChart) historyChart.destroy();
+
+                historyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: '1/PE_TTM',
+                                data: peSeries,
+                                borderColor: '#4CAF50',
+                                tension: 0.2,
+                                spanGaps: true,
+                            },
+                            {
+                                label: '1/PB',
+                                data: pbSeries,
+                                borderColor: '#2196F3',
+                                tension: 0.2,
+                                spanGaps: true,
+                            },
+                            {
+                                label: '1/PS_TTM',
+                                data: psSeries,
+                                borderColor: '#FF9800',
+                                tension: 0.2,
+                                spanGaps: true,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: { display: true, text: symbol + ' 估值因子历史' },
+                        },
+                    },
+                });
+            } catch (err) {
+                console.error('加载因子历史失败:', err);
+            }
+        }
+
+        // Hook into existing showPage function
+        const _originalShowPage = showPage;
+        showPage = function(pageName) {
+            _originalShowPage(pageName);
+            if (pageName === 'indicators') {
+                loadFactorSnapshot();
+                $('#indicator-date').text('');
+            }
+        };
     </script>
 </body>
 </html>
