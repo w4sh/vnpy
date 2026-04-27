@@ -822,7 +822,8 @@
                                                 <th>PE倒数</th>
                                                 <th>PB倒数</th>
                                                 <th>PS倒数</th>
-                                                <th>基本面评分</th>
+                                                <th>基本面</th>
+                                                <th>资金面</th>
                                             </tr>
                                         </thead>
                                         <tbody id="indicator-tbody"></tbody>
@@ -861,9 +862,26 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 新增持仓模态框 -->
+        <!-- 北向资金流向趋势 -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">北向资金流向趋势 <small class="text-muted" id="flow-score-label"></small></h5>
+                    </div>
+                    <div class="card-body">
+                        <div style="height:300px;">
+                            <canvas id="flow-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增持仓模态框 -->
     <div id="add-position-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -2214,6 +2232,9 @@
                     const fScore = row.fundamental_score
                         ? parseFloat(row.fundamental_score).toFixed(1)
                         : '-';
+                    const flowScore = row.flow_score
+                        ? parseFloat(row.flow_score).toFixed(1)
+                        : '-';
                     const final = row.final_score
                         ? parseFloat(row.final_score).toFixed(1)
                         : '-';
@@ -2232,6 +2253,7 @@
                         '<td>' + pb + '</td>' +
                         '<td>' + ps + '</td>' +
                         '<td>' + fScore + '</td>' +
+                        '<td>' + flowScore + '</td>' +
                         '</tr>'
                     );
                 });
@@ -2306,12 +2328,114 @@
             }
         }
 
+        // ============ 北向资金流向图表 ============
+        let flowChart = null;
+
+        async function loadFlowChart() {
+            try {
+                const resp = await fetch('/api/factors/flow');
+                const data = await resp.json();
+                if (!data.data || data.data.length === 0) return;
+
+                const dates = data.data.map(function(r) { return r.trade_date; });
+                const northSeries = data.data.map(function(r) { return r.north_net ? parseFloat(r.north_net) : null; });
+                const ma5Series = data.data.map(function(r) { return r.north_ma5 ? parseFloat(r.north_ma5) : null; });
+                const ma10Series = data.data.map(function(r) { return r.north_ma10 ? parseFloat(r.north_ma10) : null; });
+                const scoreSeries = data.data.map(function(r) { return r.flow_score ? parseFloat(r.flow_score) : null; });
+
+                const canvas = document.getElementById('flow-chart');
+                const existing = Chart.getChart(canvas);
+                if (existing) existing.destroy();
+
+                const ctx = canvas.getContext('2d');
+                flowChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: '北向净流入(亿)',
+                                data: northSeries,
+                                borderColor: '#E53935',
+                                backgroundColor: 'rgba(229,57,53,0.1)',
+                                fill: true,
+                                tension: 0.2,
+                                spanGaps: true,
+                                yAxisID: 'y',
+                            },
+                            {
+                                label: 'MA5',
+                                data: ma5Series,
+                                borderColor: '#FF7043',
+                                borderDash: [5, 5],
+                                tension: 0.2,
+                                spanGaps: true,
+                                yAxisID: 'y',
+                            },
+                            {
+                                label: 'MA10',
+                                data: ma10Series,
+                                borderColor: '#FFA726',
+                                borderDash: [3, 3],
+                                tension: 0.2,
+                                spanGaps: true,
+                                yAxisID: 'y',
+                            },
+                            {
+                                label: '情绪评分',
+                                data: scoreSeries,
+                                borderColor: '#4CAF50',
+                                borderWidth: 2,
+                                tension: 0.2,
+                                spanGaps: true,
+                                yAxisID: 'y1',
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { tooltip: { mode: 'index' } },
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: '亿元' },
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: { display: true, text: '评分(0-100)' },
+                                min: 0,
+                                max: 100,
+                                grid: { drawOnChartArea: false },
+                            },
+                        },
+                    },
+                });
+
+                // 更新评分标签
+                const last = data.data[data.data.length - 1];
+                if (last && last.flow_score) {
+                    const score = parseFloat(last.flow_score).toFixed(1);
+                    const color = score >= 60 ? 'text-success' : score >= 40 ? 'text-warning' : 'text-danger';
+                    $('#flow-score-label').html('当前情绪: <span class="' + color + ' fw-bold">' + score + '</span>');
+                }
+            } catch (err) {
+                console.error('加载资金流向图表失败:', err);
+            }
+        }
+
         // Hook into existing showPage function
         const _originalShowPage = showPage;
         showPage = function(pageName) {
             _originalShowPage(pageName);
             if (pageName === 'indicators') {
                 loadFactorSnapshot();
+                loadFlowChart();
                 $('#indicator-date').text('');
             }
         };

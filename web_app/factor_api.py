@@ -30,6 +30,11 @@ def get_engine():
             FundamentalComputer,
             FundamentalStorage,
         )
+        from vnpy.alpha.factors.flow import (
+            FlowFetcher,
+            FlowComputer,
+            FlowStorage,
+        )
 
         engine = FactorEngine()
         engine.register(
@@ -37,6 +42,12 @@ def get_engine():
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
+        )
+        engine.register(
+            "flow",
+            FlowFetcher(),
+            FlowComputer(),
+            FlowStorage(),
         )
         return engine
     except RuntimeError as e:
@@ -88,16 +99,33 @@ def snapshot():
             if existing:
                 scorer = DimensionScorer()
                 fund_score = scorer.score(latest, existing)
-                # 合并
                 latest = latest.join(fund_score, on="vt_symbol", how="left")
                 latest = latest.with_columns(
                     pl.col("dimension_score").alias("fundamental_score")
                 )
+
+            # 融合: fundamental (0.4) + flow (0.15) → 归一化到 0-100
+            f_weight = 0.40
+            flow_weight = 0.15
+            total_weight = f_weight + flow_weight
+
+            if "flow_score" in latest.columns and "fundamental_score" in latest.columns:
                 latest = latest.with_columns(
-                    pl.col("fundamental_score").alias("final_score")
+                    (
+                        (
+                            pl.col("fundamental_score").fill_null(50.0) * f_weight
+                            + pl.col("flow_score").fill_null(50.0) * flow_weight
+                        )
+                        / total_weight
+                    ).alias("final_score")
+                )
+            elif "fundamental_score" in latest.columns:
+                latest = latest.with_columns(
+                    (pl.col("fundamental_score") * f_weight / total_weight).alias(
+                        "final_score"
+                    )
                 )
 
-            # 排序
             sort_col = request.args.get("sort", "final_score")
             if sort_col in latest.columns:
                 latest = latest.sort(sort_col, descending=True)
@@ -182,4 +210,29 @@ def detail():
         return jsonify({"data": detail})
     except Exception as e:
         logger.error(f"因子详情 API 异常: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@factor_bp.route("/flow")
+def flow_series():
+    """获取北向资金流向时间序列
+
+    返回: trade_date, north_net, flow_score, north_ma5/10/20
+    """
+    try:
+        engine = get_engine()
+        if engine is None:
+            return jsonify({"count": 0, "data": [], "message": "Tushare Token 未配置"})
+
+        from vnpy.alpha.factors.flow.storage import FlowStorage
+
+        storage = FlowStorage()
+        try:
+            df = storage.load()
+            result = df.sort("trade_date").tail(90).to_dicts()
+            return jsonify({"count": len(result), "data": result})
+        except FileNotFoundError:
+            return jsonify({"count": 0, "data": [], "message": "暂无资金流向数据"})
+    except Exception as e:
+        logger.error(f"资金流向 API 异常: {e}")
         return jsonify({"error": str(e)}), 500

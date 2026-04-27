@@ -122,13 +122,28 @@ class FactorEngine:
         return pl.concat(frames)
 
     def get_latest_snapshot(self, symbols: list[str]) -> pl.DataFrame:
-        """获取最新交易日因子快照（供 Web API）"""
+        """获取最新交易日因子快照（供 Web API）
+
+        对于有 vt_symbol 的维度直接合并，对于市场级维度（如 flow）
+        广播到所有 symbols。
+        """
         frames = []
         for pipeline in self.pipelines.values():
             try:
                 df = pipeline.storage.get_latest(symbols)
-                if not df.is_empty():
-                    frames.append(df)
+                if df.is_empty():
+                    continue
+                # 如果是市场级数据(无 vt_symbol 列)，广播到所有 symbols
+                if "vt_symbol" not in df.columns:
+                    score_cols = [c for c in df.columns if c != "trade_date"]
+                    rows = []
+                    for sym in symbols:
+                        row = {"vt_symbol": sym}
+                        for c in score_cols:
+                            row[c] = df[0, c]
+                        rows.append(row)
+                    df = pl.DataFrame(rows)
+                frames.append(df)
             except FileNotFoundError:
                 pass
         if not frames:
@@ -144,7 +159,7 @@ class FactorEngine:
         trade_date: str,
     ) -> dict:
         """执行单个管线的日频更新"""
-        # 只有基本面管线有日频逻辑（daily_basic）
+        # 基本面管线: daily_basic 估值数据
         if pipeline.name == "fundamental":
             from vnpy.alpha.factors.fundamental.fetcher import FundamentalFetcher
             from vnpy.alpha.factors.fundamental.factors import FundamentalComputer
@@ -159,6 +174,22 @@ class FactorEngine:
                 return {"fetched": 0, "stored": 0}
             factors = pipeline.computer.compute_daily(raw)
             pipeline.storage.save_daily(factors)
+            return {"fetched": len(raw), "stored": len(factors)}
+        # 资金流向管线: 北向资金数据
+        elif pipeline.name == "flow":
+            from vnpy.alpha.factors.flow.fetcher import FlowFetcher
+            from vnpy.alpha.factors.flow.factors import FlowComputer
+
+            if not isinstance(pipeline.fetcher, FlowFetcher):
+                return {"error": "fetcher 类型不匹配"}
+            if not isinstance(pipeline.computer, FlowComputer):
+                return {"error": "computer 类型不匹配"}
+
+            raw = pipeline.fetcher.fetch_hsgt_flow(trade_date)
+            if raw.is_empty():
+                return {"fetched": 0, "stored": 0}
+            factors = pipeline.computer.compute_flow(raw)
+            pipeline.storage.save(factors)
             return {"fetched": len(raw), "stored": len(factors)}
 
         # 其他管线（二期、三期）在此扩展

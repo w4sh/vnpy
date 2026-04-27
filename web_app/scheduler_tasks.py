@@ -161,6 +161,11 @@ def run_daily_factor_update():
             FundamentalComputer,
             FundamentalStorage,
         )
+        from vnpy.alpha.factors.flow import (
+            FlowFetcher,
+            FlowComputer,
+            FlowStorage,
+        )
         from vnpy.alpha.factors.fundamental.fetcher import FundamentalFetcher as FF
 
         engine = FactorEngine()
@@ -169,6 +174,12 @@ def run_daily_factor_update():
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
+        )
+        engine.register(
+            "flow",
+            FlowFetcher(),
+            FlowComputer(),
+            FlowStorage(),
         )
 
         # 日频估值数据更新（每次必跑）
