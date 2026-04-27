@@ -19,22 +19,29 @@ factor_bp = Blueprint("factors", __name__, url_prefix="/api/factors")
 
 
 def get_engine():
-    """延迟初始化 FactorEngine (导入 Tushare 较慢)"""
-    from vnpy.alpha.factors import FactorEngine
-    from vnpy.alpha.factors.fundamental import (
-        FundamentalFetcher,
-        FundamentalComputer,
-        FundamentalStorage,
-    )
+    """延迟初始化 FactorEngine (导入 Tushare 较慢)
 
-    engine = FactorEngine()
-    engine.register(
-        "fundamental",
-        FundamentalFetcher(),
-        FundamentalComputer(),
-        FundamentalStorage(),
-    )
-    return engine
+    若 Tushare Token 未配置，返回 None。
+    """
+    try:
+        from vnpy.alpha.factors import FactorEngine
+        from vnpy.alpha.factors.fundamental import (
+            FundamentalFetcher,
+            FundamentalComputer,
+            FundamentalStorage,
+        )
+
+        engine = FactorEngine()
+        engine.register(
+            "fundamental",
+            FundamentalFetcher(),
+            FundamentalComputer(),
+            FundamentalStorage(),
+        )
+        return engine
+    except RuntimeError as e:
+        logger.warning(f"FactorEngine 初始化失败: {e}")
+        return None
 
 
 def get_stock_pool():
@@ -61,6 +68,15 @@ def snapshot():
             return jsonify({"error": "无可用股票池"}), 500
 
         engine = get_engine()
+        if engine is None:
+            return jsonify(
+                {
+                    "count": 0,
+                    "data": [],
+                    "message": "Tushare Token 未配置，请设置 TUSHARE_TOKEN 环境变量后重启服务",
+                }
+            )
+
         latest = engine.get_latest_snapshot(symbols)
 
         # 如果没有融合层，先做基本面维度评分
@@ -109,6 +125,9 @@ def history():
 
     try:
         engine = get_engine()
+        if engine is None:
+            return jsonify({"count": 0, "data": [], "message": "Tushare Token 未配置"})
+
         end = datetime.now()
         from datetime import timedelta
 
@@ -142,8 +161,10 @@ def detail():
 
     try:
         engine = get_engine()
-        latest = engine.get_latest_snapshot([symbol])
+        if engine is None:
+            return jsonify({"message": "Tushare Token 未配置"})
 
+        latest = engine.get_latest_snapshot([symbol])
         if latest.is_empty() or len(latest) == 0:
             return jsonify({"message": "无数据"})
 
