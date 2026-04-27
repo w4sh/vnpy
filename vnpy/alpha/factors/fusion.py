@@ -59,17 +59,22 @@ class DimensionScorer:
             if w == 0.0:
                 continue
 
-            # 截面排名标准化: rank / total * 100
+            # 截面排名标准化: rank 1 → 100, last rank → 0
             rank_expr = (
-                pl.col(name).rank("ordinal", descending=True)
+                (
+                    pl.col(name).count()
+                    - pl.col(name).rank("ordinal", descending=True)
+                    + 1
+                )
                 / pl.col(name).count()
                 * 100.0
             )
             norm = rank_expr.fill_nan(50.0).fill_null(50.0)
             total_score = total_score + norm * pl.lit(w)
 
-        return df.select(["vt_symbol"]).with_columns(
-            total_score.cast(pl.Float64, strict=False).alias("dimension_score")
+        return df.select(
+            pl.col("vt_symbol"),
+            total_score.cast(pl.Float64, strict=False).alias("dimension_score"),
         )
 
 

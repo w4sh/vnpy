@@ -76,10 +76,15 @@ class FundamentalStorage(FactorStorage):
         if not self.daily_path.exists():
             raise FileNotFoundError(f"{self.daily_path} 不存在，请先运行数据拉取")
         df = pl.read_parquet(self.daily_path)
+        # Normalize date params to strings for comparison with string columns
+        start_str = (
+            start.strftime("%Y%m%d") if isinstance(start, datetime) else str(start)
+        )
+        end_str = end.strftime("%Y%m%d") if isinstance(end, datetime) else str(end)
         return df.filter(
             pl.col("vt_symbol").is_in(symbols)
-            & (pl.col("trade_date") >= start)
-            & (pl.col("trade_date") <= end)
+            & (pl.col("trade_date") >= start_str)
+            & (pl.col("trade_date") <= end_str)
         )
 
     def get_latest(self, symbols: list[str]) -> pl.DataFrame:
