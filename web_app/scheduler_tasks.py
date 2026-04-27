@@ -7,6 +7,7 @@
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, timedelta
 from web_app.models import Strategy, get_db_session
 from web_app.recalc_service import RecalculationService, handle_recalc_failure
@@ -91,6 +92,23 @@ def recover_stuck_strategies():
             session.close()
 
 
+def run_daily_candidate_screening():
+    """每日候选股筛选（交易日 15:30）"""
+    try:
+        from web_app.candidate.screening_engine import run_screening, save_results_to_db
+        from datetime import date
+
+        logger.info("开始每日候选股筛选...")
+        results, pool_size, elapsed = run_screening(mode="full")
+        save_results_to_db(results, date.today())
+        logger.info(
+            f"每日候选股筛选完成：股票池 {pool_size}，"
+            f"推荐 {len(results)} 只，耗时 {elapsed}s"
+        )
+    except Exception as e:
+        logger.error(f"每日候选股筛选失败: {e}")
+
+
 def init_scheduler():
     """初始化定时任务"""
     # 重算dirty策略：每5分钟执行一次
@@ -109,8 +127,67 @@ def init_scheduler():
         name="恢复卡死策略",
     )
 
+    # 每日候选股筛选：交易日 15:30
+    scheduler.add_job(
+        func=run_daily_candidate_screening,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=30),
+        id="daily_candidate_screening",
+        name="每日候选股筛选",
+    )
+
+    # 日终前瞻因子更新：交易日 15:35
+    scheduler.add_job(
+        func=run_daily_factor_update,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=35),
+        id="daily_factor_update",
+        name="日终前瞻因子更新",
+    )
+
     scheduler.start()
     logger.info("定时任务已启动")
+
+
+def run_daily_factor_update():
+    """日终增量更新前瞻因子（交易日 15:30 之后）"""
+    try:
+        from web_app.candidate.screening_engine import STOCK_POOL
+        from datetime import date
+
+        today = date.today().strftime("%Y%m%d")
+
+        from vnpy.alpha.factors import FactorEngine
+        from vnpy.alpha.factors.fundamental import (
+            FundamentalFetcher,
+            FundamentalComputer,
+            FundamentalStorage,
+        )
+        from vnpy.alpha.factors.fundamental.fetcher import FundamentalFetcher as FF
+
+        engine = FactorEngine()
+        engine.register(
+            "fundamental",
+            FundamentalFetcher(),
+            FundamentalComputer(),
+            FundamentalStorage(),
+        )
+
+        # 日频估值数据更新（每次必跑）
+        daily_result = engine.run_daily(STOCK_POOL, today)
+        logger.info(f"日频因子更新完成: {daily_result}")
+
+        # 季频财务数据仅在财报旺季窗口更新
+        from datetime import datetime as dt
+
+        now = dt.now()
+        if FF.is_earnings_window(now):
+            logger.info("进入财报旺季窗口，执行季频因子更新")
+            quarterly_result = engine.run_quarterly(STOCK_POOL, today)
+            logger.info(f"季频因子更新完成: {quarterly_result}")
+        else:
+            logger.info("非财报旺季窗口，跳过季频因子更新")
+
+    except Exception as e:
+        logger.error(f"因子更新任务失败: {e}")
 
 
 def shutdown_scheduler():
