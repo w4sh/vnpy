@@ -124,10 +124,10 @@ class FactorEngine:
     def get_latest_snapshot(self, symbols: list[str]) -> pl.DataFrame:
         """获取最新交易日因子快照（供 Web API）
 
-        对于有 vt_symbol 的维度直接合并，对于市场级维度（如 flow）
-        广播到所有 symbols。
+        多个维度的数据通过 vt_symbol join 合并。
+        对于市场级维度（如 flow），先广播到所有 symbols。
         """
-        frames = []
+        base = pl.DataFrame({"vt_symbol": symbols})
         for pipeline in self.pipelines.values():
             try:
                 df = pipeline.storage.get_latest(symbols)
@@ -143,12 +143,10 @@ class FactorEngine:
                             row[c] = df[0, c]
                         rows.append(row)
                     df = pl.DataFrame(rows)
-                frames.append(df)
+                base = base.join(df, on="vt_symbol", how="left")
             except FileNotFoundError:
                 pass
-        if not frames:
-            return pl.DataFrame()
-        return pl.concat(frames)
+        return base
 
     # ---- 内部方法 ----
 
