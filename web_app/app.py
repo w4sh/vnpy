@@ -26,6 +26,7 @@ from scripts.advanced_bollinger_picker import AdvancedBollingerPicker
 
 # 导入股票名称映射
 from web_app.stock_names import format_stock_symbol
+from web_app.models import CandidateStock, get_db_session
 
 # 导入持仓管理API蓝图
 from web_app.position_api import position_bp
@@ -35,6 +36,9 @@ from web_app.strategy_api import strategy_bp
 
 # 导入数据分析API蓝图
 from web_app.analytics_api import analytics_bp
+
+# 导入前瞻因子API蓝图
+from web_app.factor_api import factor_bp
 
 # 导入定时任务
 from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
@@ -49,6 +53,8 @@ app.register_blueprint(position_bp)
 app.register_blueprint(strategy_bp)
 # 注册数据分析蓝图
 app.register_blueprint(analytics_bp)
+# 注册前瞻因子蓝图
+app.register_blueprint(factor_bp)
 
 # 初始化定时任务
 init_scheduler()
@@ -424,6 +430,130 @@ def compare_strategies():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/candidates/latest")
+def get_latest_candidates():
+    """获取最近一次候选股推荐结果"""
+    session = None
+    try:
+        session = get_db_session()
+
+        # 获取最新筛选日期的 top 20 结果
+        latest = (
+            session.query(CandidateStock)
+            .order_by(CandidateStock.screening_date.desc(), CandidateStock.rank)
+            .limit(20)
+            .all()
+        )
+
+        if not latest:
+            return jsonify(
+                {
+                    "success": True,
+                    "screening_date": None,
+                    "stock_pool_size": 0,
+                    "elapsed_seconds": 0,
+                    "results": [],
+                    "message": "暂无候选股推荐数据，请在交易日收盘后运行筛选",
+                }
+            )
+
+        screening_date = latest[0].screening_date.strftime("%Y-%m-%d")
+        results = []
+        for c in latest:
+            results.append(
+                {
+                    "rank": c.rank,
+                    "symbol": c.symbol,
+                    "name": c.name,
+                    "score": float(c.score) if c.score else 0,
+                    "momentum_score": float(c.momentum_score)
+                    if c.momentum_score
+                    else 0,
+                    "trend_score": float(c.trend_score) if c.trend_score else 0,
+                    "volume_score": float(c.volume_score) if c.volume_score else 0,
+                    "volatility_score": float(c.volatility_score)
+                    if c.volatility_score
+                    else 0,
+                    "current_price": float(c.current_price) if c.current_price else 0,
+                    "total_return": float(c.total_return) if c.total_return else 0,
+                    "annual_return": float(c.annual_return) if c.annual_return else 0,
+                    "max_drawdown": float(c.max_drawdown) if c.max_drawdown else 0,
+                    "sharpe_ratio": float(c.sharpe_ratio) if c.sharpe_ratio else 0,
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "screening_date": screening_date,
+                "stock_pool_size": 0,  # 前端不需要展示
+                "elapsed_seconds": 0,
+                "results": results,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        if session:
+            session.close()
+
+
+@app.route("/api/candidates/history")
+def get_candidates_history():
+    """查询指定日期的候选股历史记录"""
+    session = None
+    try:
+        date_str = request.args.get("date", "")
+        session = get_db_session()
+
+        query = session.query(CandidateStock).order_by(CandidateStock.rank)
+
+        if date_str:
+            from datetime import datetime as dt
+
+            target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+            query = query.filter(CandidateStock.screening_date == target_date)
+
+        candidates = query.all()
+
+        # 按日期分组
+        results_by_date: dict = {}
+        for c in candidates:
+            d = c.screening_date.strftime("%Y-%m-%d")
+            if d not in results_by_date:
+                results_by_date[d] = []
+            results_by_date[d].append(
+                {
+                    "rank": c.rank,
+                    "symbol": c.symbol,
+                    "name": c.name,
+                    "score": float(c.score) if c.score else 0,
+                    "momentum_score": float(c.momentum_score)
+                    if c.momentum_score
+                    else 0,
+                    "trend_score": float(c.trend_score) if c.trend_score else 0,
+                    "volume_score": float(c.volume_score) if c.volume_score else 0,
+                    "volatility_score": float(c.volatility_score)
+                    if c.volatility_score
+                    else 0,
+                    "current_price": float(c.current_price) if c.current_price else 0,
+                    "total_return": float(c.total_return) if c.total_return else 0,
+                    "annual_return": float(c.annual_return) if c.annual_return else 0,
+                    "max_drawdown": float(c.max_drawdown) if c.max_drawdown else 0,
+                    "sharpe_ratio": float(c.sharpe_ratio) if c.sharpe_ratio else 0,
+                }
+            )
+
+        return jsonify({"success": True, "results": results_by_date})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        if session:
+            session.close()
 
 
 @app.route("/position_management")
