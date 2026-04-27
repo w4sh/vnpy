@@ -2260,8 +2260,10 @@
                 const pbSeries = data.data.map(function(r) { return r.pb ? parseFloat(r.pb).toFixed(4) : null; });
                 const psSeries = data.data.map(function(r) { return r.ps_ttm ? parseFloat(r.ps_ttm).toFixed(4) : null; });
 
-                const ctx = document.getElementById('factor-history-chart').getContext('2d');
-                if (historyChart) historyChart.destroy();
+                const canvas = document.getElementById('factor-history-chart');
+                const existing = Chart.getChart(canvas);
+                if (existing) existing.destroy();
+                const ctx = canvas.getContext('2d');
 
                 historyChart = new Chart(ctx, {
                     type: 'line',
