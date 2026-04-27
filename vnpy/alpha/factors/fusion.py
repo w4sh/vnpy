@@ -7,7 +7,6 @@
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 import polars as pl
 
@@ -32,7 +31,7 @@ class DimensionScorer:
         self,
         factor_wide_df: pl.DataFrame,
         factor_names: list[str],
-        weights: Optional[dict[str, float]] = None,
+        weights: dict[str, float] | None = None,
     ) -> pl.DataFrame:
         """计算维度综合评分
 
@@ -86,7 +85,7 @@ class SignalFusion:
       Layer 2: 跨维度加权融合 → final_score
     """
 
-    def __init__(self, weights: Optional[dict[str, float]] = None):
+    def __init__(self, weights: dict[str, float] | None = None):
         """
         参数:
             weights: 维度权重，如 {"technical": 0.5, "fundamental": 0.5}

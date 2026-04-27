@@ -7,7 +7,6 @@ from datetime import datetime
 
 import numpy as np
 import polars as pl
-import pytest
 
 from vnpy.alpha.factors.base import DataFetcher, FactorComputer, FactorStorage
 from vnpy.alpha.factors.engine import FactorEngine
