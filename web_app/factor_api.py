@@ -39,12 +39,14 @@ def get_engine():
         engine = FactorEngine()
         engine.register(
             "fundamental",
+            "both",
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
         )
         engine.register(
             "flow",
+            "daily",
             FlowFetcher(),
             FlowComputer(),
             FlowStorage(),
@@ -56,13 +58,19 @@ def get_engine():
 
 
 def get_stock_pool():
-    """从候选股模块获取股票池"""
+    """从 StockPoolManager 获取全量A股股票池"""
     try:
-        from web_app.candidate.screening_engine import STOCK_POOL
+        from vnpy.alpha.factors.stock_pool import StockPoolManager
 
-        return STOCK_POOL
+        return StockPoolManager().get_full_pool()
     except ImportError:
-        return []
+        # fallback: 尝试从候选股模块获取
+        try:
+            from web_app.candidate.screening_engine import STOCK_POOL
+
+            return STOCK_POOL
+        except ImportError:
+            return []
 
 
 @factor_bp.route("/snapshot")
@@ -182,7 +190,8 @@ def detail():
         date: YYYY-MM-DD
     """
     symbol = request.args.get("symbol", "")
-    query_date = request.args.get("date", "")
+    # TODO: 支持 date 参数以获取历史日期的维度分解
+    request.args.get("date", "")  # pylint: disable=unused-variable
 
     if not symbol:
         return jsonify({"error": "缺少 symbol 参数"}), 400

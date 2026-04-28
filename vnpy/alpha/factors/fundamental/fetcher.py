@@ -8,14 +8,20 @@
 - disclosure_date: 财报实际公告日
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import time
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import polars as pl
 
 from vnpy.alpha.factors.base import DataFetcher
+
+if TYPE_CHECKING:
+    from vnpy.alpha.factors.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +52,15 @@ def get_pro_api():
 
 
 class FundamentalFetcher(DataFetcher):
-    """基本面数据拉取器"""
+    """基本面数据拉取器
 
-    def __init__(self):
+    支持注入 RateLimiter 控制逐只 API 调用频率。
+    当 rate_limiter 为 None 时，回退到 time.sleep(0.3) 简单限频。
+    """
+
+    def __init__(self, rate_limiter: RateLimiter | None = None):
         self.pro = get_pro_api()
+        self.rate_limiter = rate_limiter
 
     def fetch(self, symbols: list[str], date: datetime) -> pl.DataFrame:
         """统一拉取入口，返回原始数据 DataFrame"""
@@ -113,7 +124,10 @@ class FundamentalFetcher(DataFetcher):
                 start_date=start_date,
                 fields="end_date,ts_code,revenue,n_income,total_cogs,operate_profit",
             )
-            time.sleep(0.3)  # 频率控制
+            if self.rate_limiter:
+                self.rate_limiter.acquire()
+            else:
+                time.sleep(0.3)
         except Exception as e:
             logger.warning(f"拉取 income({ts_code}) 失败: {e}")
             return pl.DataFrame()
@@ -148,7 +162,10 @@ class FundamentalFetcher(DataFetcher):
                 start_date=start_date,
                 fields="end_date,ts_code,roe,roa,grossprofit_margin,netprofit_margin,debt_to_assets",
             )
-            time.sleep(0.3)
+            if self.rate_limiter:
+                self.rate_limiter.acquire()
+            else:
+                time.sleep(0.3)
         except Exception as e:
             logger.warning(f"拉取 fina_indicator({ts_code}) 失败: {e}")
             return pl.DataFrame()
@@ -186,7 +203,10 @@ class FundamentalFetcher(DataFetcher):
                 ts_code=ts_code,
                 fields="ts_code,end_date,pre_date,actual_date",
             )
-            time.sleep(0.2)
+            if self.rate_limiter:
+                self.rate_limiter.acquire()
+            else:
+                time.sleep(0.2)
         except Exception as e:
             logger.warning(f"拉取 disclosure_date({ts_code}) 失败: {e}")
             return pl.DataFrame()

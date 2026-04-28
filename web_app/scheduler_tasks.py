@@ -150,8 +150,13 @@ def init_scheduler():
 def run_daily_factor_update():
     """日终增量更新前瞻因子（交易日 15:30 之后）"""
     try:
-        from web_app.candidate.screening_engine import STOCK_POOL
+        from vnpy.alpha.factors.stock_pool import StockPoolManager
         from datetime import date
+
+        # 从全量 StockPoolManager 获取股票池（替代手选 STOCK_POOL）
+        pool_manager = StockPoolManager()
+        full_pool = pool_manager.get_full_pool()
+        logger.info(f"全量股票池已就绪: {len(full_pool)} 只")
 
         today = date.today().strftime("%Y%m%d")
 
@@ -166,24 +171,28 @@ def run_daily_factor_update():
             FlowComputer,
             FlowStorage,
         )
-        from vnpy.alpha.factors.fundamental.fetcher import FundamentalFetcher as FF
+        from vnpy.alpha.factors.fundamental.fetcher import (
+            FundamentalFetcher as FF,
+        )
 
         engine = FactorEngine()
         engine.register(
             "fundamental",
+            "both",
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
         )
         engine.register(
             "flow",
+            "daily",
             FlowFetcher(),
             FlowComputer(),
             FlowStorage(),
         )
 
-        # 日频估值数据更新（每次必跑）
-        daily_result = engine.run_daily(STOCK_POOL, today)
+        # 日频估值数据更新（一次全量拉取，无需分批）
+        daily_result = engine.run_daily(full_pool, today)
         logger.info(f"日频因子更新完成: {daily_result}")
 
         # 季频财务数据仅在财报旺季窗口更新
@@ -191,9 +200,10 @@ def run_daily_factor_update():
 
         now = dt.now()
         if FF.is_earnings_window(now):
-            logger.info("进入财报旺季窗口，执行季频因子更新")
-            quarterly_result = engine.run_quarterly(STOCK_POOL, today)
-            logger.info(f"季频因子更新完成: {quarterly_result}")
+            logger.info("进入财报旺季窗口，执行季频因子分批更新")
+            engine.init_stock_pool()
+            quarterly_result = engine.run_quarterly_batch(full_pool, today)
+            logger.info(f"季频因子分批更新完成: {quarterly_result}")
         else:
             logger.info("非财报旺季窗口，跳过季频因子更新")
 
