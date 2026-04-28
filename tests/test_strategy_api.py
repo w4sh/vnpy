@@ -34,6 +34,22 @@ def db_session(db_engine):
     session.close()
 
 
+@pytest.fixture(autouse=True)
+def _patch_get_db_session(db_engine, monkeypatch):
+    """将 strategy_api 的 get_db_session 替换为测试数据库会话
+
+    由于 strategy_api 会在请求结束时 close session，每次调用
+    get_db_session 都需要创建一个新的 session 从同一个 engine。
+    """
+    import web_app.strategy_api as strategy_api_module
+
+    def _make_session():
+        Session = sessionmaker(bind=db_engine)
+        return Session()
+
+    monkeypatch.setattr(strategy_api_module, "get_db_session", _make_session)
+
+
 def test_update_strategy_description(app, db_session):
     """测试:更新策略描述"""
     strategy = Strategy(name="测试策略", initial_capital=1000000, recalc_status="clean")
@@ -61,7 +77,7 @@ def test_update_strategy_description(app, db_session):
 
 def test_update_strategy_reject_protected_fields(app, db_session):
     """测试:拒绝修改受保护字段"""
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(name="测试策略2", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
 
@@ -74,7 +90,7 @@ def test_update_strategy_reject_protected_fields(app, db_session):
 
 def test_delete_strategy_success(app, db_session):
     """测试:成功删除策略(软删除)"""
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(name="测试策略3", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
     strategy_id = strategy.id
@@ -97,7 +113,7 @@ def test_delete_strategy_success(app, db_session):
 
 def test_delete_strategy_with_active_positions(app, db_session):
     """测试:拒绝删除有活跃持仓的策略"""
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(name="测试策略4", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
 
@@ -122,7 +138,7 @@ def test_delete_strategy_with_active_positions(app, db_session):
 def test_get_strategy_details(app, db_session):
     """测试:获取策略详情"""
     strategy = Strategy(
-        name="测试策略",
+        name="测试策略5",
         description="策略描述",
         initial_capital=1000000,
         current_capital=1200000,
@@ -137,7 +153,7 @@ def test_get_strategy_details(app, db_session):
 
     assert response.status_code == 200
     data = response.get_json()
-    assert data["name"] == "测试策略"
+    assert data["name"] == "测试策略5"
     assert data["description"] == "策略描述"
     assert data["recalc_status"] == "clean"
 
@@ -145,7 +161,7 @@ def test_get_strategy_details(app, db_session):
 def test_get_strategy_positions(app, db_session):
     """测试:获取策略持仓列表"""
     # 创建策略
-    strategy = Strategy(name="测试策略", initial_capital=1000000)
+    strategy = Strategy(name="测试策略6", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
 
@@ -175,7 +191,7 @@ def test_get_strategy_positions(app, db_session):
 def test_get_strategy_details_after_deletion(app, db_session):
     """测试:获取已删除策略的详情(应该返回404)"""
     strategy = Strategy(
-        name="测试策略",
+        name="测试策略7",
         description="策略描述",
         initial_capital=1000000,
         recalc_status="clean",

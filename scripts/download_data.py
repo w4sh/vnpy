@@ -94,7 +94,7 @@ class TushareDataDownloader:
             return df
         except Exception as e:
             print(f"  ✗ 加载合约列表失败：{str(e)}")
-            print(f"  提示：Tushare 免费账号每天最多调用 fut_basic 接口 10 次")
+            print("  提示：Tushare 免费账号每天最多调用 fut_basic 接口 10 次")
             import pandas as pd
 
             return pd.DataFrame()
@@ -200,7 +200,7 @@ class TushareDataDownloader:
         try:
             # 检查预加载的合约列表是否为空
             if self.all_contracts is None or len(self.all_contracts) == 0:
-                print(f"    ⚠ 合约列表为空，尝试重新加载...")
+                print("    ⚠ 合约列表为空，尝试重新加载...")
                 self.all_contracts = self._load_all_contracts()
                 if self.all_contracts is None or len(self.all_contracts) == 0:
                     print(f"    ✗ 无法加载合约列表，跳过 {symbol}")

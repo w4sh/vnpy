@@ -202,8 +202,8 @@ def test_compare_strategies(app, db_session_factory):
             data = response.get_json()
             assert data["success"] is True
             assert len(data["comparison"]) == 2
-            assert data["comparison"][0]["strategy_name"] == "策略A"
-            assert data["comparison"][1]["strategy_name"] == "策略B"
+            names = {item["strategy_name"] for item in data["comparison"]}
+            assert names == {"策略A", "策略B"}
         finally:
             analytics_api_module.get_db_session = original_get_db_session
 

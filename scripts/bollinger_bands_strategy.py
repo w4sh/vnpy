@@ -19,7 +19,6 @@ from collections import defaultdict
 import numpy as np
 
 from vnpy.trader.object import BarData, TradeData, OrderData
-from vnpy.trader.constant import Direction, Offset
 from vnpy.trader.utility import ArrayManager
 from vnpy.alpha import AlphaStrategy
 

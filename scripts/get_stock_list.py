@@ -2,7 +2,6 @@
 """快速获取A股股票列表"""
 
 import akshare as ak
-import pandas as pd
 
 print("=" * 60)
 print("获取A股股票列表")
@@ -32,13 +31,13 @@ try:
 
         # 保存
         stock_info.to_csv("stock_list_all.csv", index=False, encoding="utf-8-sig")
-        print(f"✓ 已保存到: stock_list_all.csv")
+        print("✓ 已保存到: stock_list_all.csv")
 
         # 统计
-        print(f"\n[2/2] 市场分布:")
+        print("\n[2/2] 市场分布:")
         print(stock_info["exchange"].value_counts())
 
-        print(f"\n前10只股票:")
+        print("\n前10只股票:")
         print(stock_info.head(10))
 
     else:

@@ -51,7 +51,7 @@ try:
     if_contracts = df_basic[df_basic["symbol"].str.contains("IF")]
     print(f"  IF 合约数量: {len(if_contracts)}")
     if len(if_contracts) > 0:
-        print(f"  IF 合约示例:")
+        print("  IF 合约示例:")
         print(if_contracts.head(3))
 
 except Exception as e:
@@ -74,10 +74,10 @@ try:
         print(f"✓ 获取日线数据成功，共 {len(df_daily)} 条")
         if len(df_daily) > 0:
             print(f"  列名: {df_daily.columns.tolist()}")
-            print(f"  前3行:")
+            print("  前3行:")
             print(df_daily.head(3))
         else:
-            print(f"  ⚠ 数据为空，可能合约代码或日期范围有问题")
+            print("  ⚠ 数据为空，可能合约代码或日期范围有问题")
     else:
         print("✗ 没有 IF 合约可测试")
 
@@ -121,7 +121,7 @@ print("\n=== 步骤6: 测试保存数据 ===")
 try:
     if len(bars) > 0:
         lab.save_bar_data(bars)
-        print(f"✓ 保存数据成功")
+        print("✓ 保存数据成功")
 
         # 验证保存
         overview = lab.get_bar_overview()

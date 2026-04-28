@@ -9,9 +9,7 @@ A股全市场数据下载脚本（修复版）
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import List
 import time
-import polars as pl
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -88,10 +86,10 @@ class FixedAStockDownloader:
             try:
                 import json
 
-                with open(self.PROGRESS_FILE, "r") as f:
+                with open(self.PROGRESS_FILE) as f:
                     data = json.load(f)
                     downloaded = set(data.get("downloaded", []))
-            except:
+            except Exception:
                 pass
 
         # 从已下载文件中读取
@@ -101,7 +99,7 @@ class FixedAStockDownloader:
                 for file in daily_path.glob("*.parquet"):
                     code = file.stem.split(".")[0]
                     downloaded.add(code)
-        except:
+        except Exception:
             pass
 
         return downloaded
@@ -206,7 +204,7 @@ class FixedAStockDownloader:
                 time.sleep(self.REQUEST_DELAY)
 
             # 每批保存进度
-            print(f"\n  批次完成，保存进度...", flush=True)
+            print("\n  批次完成，保存进度...", flush=True)
             self._save_progress()
             print(
                 f"  已完成: {len(self.downloaded_stocks)}/{len(self.all_stocks)}",
@@ -222,7 +220,7 @@ class FixedAStockDownloader:
         exchange: str,
         start: str,
         end: str,
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """下载单只股票数据"""
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -252,7 +250,7 @@ class FixedAStockDownloader:
 
     def _convert_to_bars(
         self, df: pd.DataFrame, code: str, exchange: str
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """转换数据为 BarData"""
         exchange_obj = Exchange.SSE if exchange == "SSE" else Exchange.SZSE
 
@@ -274,7 +272,7 @@ class FixedAStockDownloader:
                     gateway_name="AKSHARE",
                 )
                 bars.append(bar)
-            except:
+            except Exception:
                 continue
 
         return bars

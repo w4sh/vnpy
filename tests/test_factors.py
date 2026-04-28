@@ -82,6 +82,7 @@ class TestFactorEngine:
         engine = FactorEngine()
         engine.register(
             "test_dim",
+            "daily",
             MockFetcher(),
             MockComputer(),
             MockStorage(),
@@ -96,7 +97,7 @@ class TestFactorEngine:
         """测试获取最新快照"""
         engine = FactorEngine()
         storage = MockStorage()
-        engine.register("test", MockFetcher(), MockComputer(), storage)
+        engine.register("test", "daily", MockFetcher(), MockComputer(), storage)
 
         symbols = ["000001.SZSE", "600036.SSE"]
         engine.run_daily(symbols, "20241025")

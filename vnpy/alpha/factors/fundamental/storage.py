@@ -121,3 +121,66 @@ class FundamentalStorage(FactorStorage):
         if not self.quarterly_path.exists():
             raise FileNotFoundError(f"{self.quarterly_path} 不存在")
         return pl.read_parquet(self.quarterly_path)
+
+    def load_quarterly_with_forward_fill(
+        self, symbols: list[str], start: str, end: str
+    ) -> pl.DataFrame:
+        """加载季频因子长表，并前值填充至交易日序列
+
+        前值填充策略：
+        - 季频因子在 pub_date（公告日）当天开始生效
+        - 至下一个 pub_date 之前保持不变
+        - 若股票在某财报窗口前尚无公告，评分为 NaN
+
+        参数:
+            symbols: 股票代码列表
+            start: 起始日期 'YYYYMMDD'
+            end: 结束日期 'YYYYMMDD'
+
+        返回:
+            填充后的季频因子长表，包含 trade_date | vt_symbol | factor_name | factor_value
+        """
+        if not self.quarterly_path.exists():
+            raise FileNotFoundError(f"{self.quarterly_path} 不存在")
+
+        df = pl.read_parquet(self.quarterly_path)
+        df = df.filter(pl.col("vt_symbol").is_in(symbols))
+
+        if df.is_empty():
+            return df
+
+        # 构建完整交易日序列（按 symbol 分组）
+        all_dates = pl.DataFrame(
+            {"trade_date": list(range(int(start), int(end) + 1, 1))}
+        ).with_columns(pl.col("trade_date").cast(str))
+
+        # 将 pub_date 当作生效日期，对每个 symbol 做前值填充
+        result_frames = []
+        for sym in symbols:
+            sym_df = df.filter(pl.col("vt_symbol") == sym).sort("pub_date")
+            if sym_df.is_empty():
+                continue
+
+            # 构建该股票完整的日期-因子表
+            sym_dates = all_dates.clone()
+            sym_filled = sym_dates.join(
+                sym_df.select(["pub_date", "factor_name", "factor_value"]),
+                left_on="trade_date",
+                right_on="pub_date",
+                how="left",
+            ).with_columns(pl.col("vt_symbol").fill_null(sym))
+
+            # 按因子名分组前值填充
+            for factor_name in sym_filled["factor_name"].unique().drop_nulls():
+                factor_data = sym_filled.filter(pl.col("factor_name") == factor_name)
+                factor_data = factor_data.sort("trade_date")
+                # forward fill: 用前一个非空值填充 NaN
+                factor_data = factor_data.with_columns(
+                    pl.col("factor_value").forward_fill()
+                )
+                result_frames.append(factor_data)
+
+        if not result_frames:
+            return pl.DataFrame()
+
+        return pl.concat(result_frames)

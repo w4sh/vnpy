@@ -16,7 +16,7 @@ def test_api_imports():
     """测试API相关导入"""
     print("🔍 测试API导入...")
     try:
-        import polars as pl
+        import polars as pl  # noqa: F401
 
         print("  ✓ Polars导入成功")
     except ImportError as e:
@@ -24,7 +24,7 @@ def test_api_imports():
         return False
 
     try:
-        from flask import Flask
+        from flask import Flask  # noqa: F401
 
         print("  ✓ Flask导入成功")
     except ImportError as e:
@@ -32,7 +32,7 @@ def test_api_imports():
         return False
 
     try:
-        from vnpy.alpha import AlphaLab
+        from vnpy.alpha import AlphaLab  # noqa: F401
 
         print("  ✓ AlphaLab导入成功")
     except ImportError as e:
@@ -40,7 +40,7 @@ def test_api_imports():
         return False
 
     try:
-        from vnpy.alpha.strategy.backtesting import BacktestingEngine
+        from vnpy.alpha.strategy.backtesting import BacktestingEngine  # noqa: F401
 
         print("  ✓ BacktestingEngine导入成功")
     except ImportError as e:
@@ -54,7 +54,7 @@ def test_strategy_imports():
     """测试策略导入"""
     print("\n🔍 测试策略导入...")
     try:
-        from scripts.dual_ma_strategy import DualMaStrategy
+        from scripts.dual_ma_strategy import DualMaStrategy  # noqa: F401
 
         print("  ✓ 双均线策略导入成功")
     except ImportError as e:
@@ -62,7 +62,7 @@ def test_strategy_imports():
         return False
 
     try:
-        from scripts.bollinger_bands_strategy import BollingerBandsStrategy
+        from scripts.bollinger_bands_strategy import BollingerBandsStrategy  # noqa: F401
 
         print("  ✓ 布林带策略导入成功")
     except ImportError as e:
@@ -70,7 +70,7 @@ def test_strategy_imports():
         return False
 
     try:
-        from scripts.momentum_strategy import MomentumStrategy
+        from scripts.momentum_strategy import MomentumStrategy  # noqa: F401
 
         print("  ✓ 动量策略导入成功")
     except ImportError as e:
@@ -78,7 +78,7 @@ def test_strategy_imports():
         return False
 
     try:
-        from scripts.dual_thrust_strategy import DualThrustStrategy
+        from scripts.dual_thrust_strategy import DualThrustStrategy  # noqa: F401
 
         print("  ✓ Dual Thrust策略导入成功")
     except ImportError as e:
@@ -92,7 +92,7 @@ def test_data_access():
     """测试数据访问"""
     print("\n🔍 测试数据访问...")
     try:
-        from vnpy.alpha import AlphaLab
+        from vnpy.alpha import AlphaLab  # noqa: F401
 
         lab = AlphaLab("/Users/w4sh8899/project/vnpy/lab_data")
 

@@ -15,10 +15,8 @@ Dual Thrust 策略（双驱动策略）
 """
 
 from collections import defaultdict
-from datetime import datetime, time
 
 from vnpy.trader.object import BarData, TradeData, OrderData
-from vnpy.trader.constant import Direction, Offset, Status
 from vnpy.trader.utility import ArrayManager
 from vnpy.alpha import AlphaStrategy
 
@@ -58,7 +56,7 @@ class DualThrustStrategy(AlphaStrategy):
             # 计算Dual Thrust指标
             if len(self.bars[vt_symbol]) >= 2:
                 yesterday = self.bars[vt_symbol][-2]
-                today = bar
+                _today = bar
 
                 # 计算上下轨
                 upper_band, lower_band = self.calculate_bands(yesterday)

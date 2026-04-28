@@ -11,7 +11,6 @@
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Dict
 import time
 import pandas as pd
 
@@ -65,7 +64,7 @@ class StockDataDownloader:
 
     def download_stock_data(
         self,
-        stock_codes: List[str],
+        stock_codes: list[str],
         start_date: str,
         end_date: str,
         use_tushare: bool = True,
@@ -104,7 +103,7 @@ class StockDataDownloader:
                 print(f"  段 {i + 1}: {chunk_start.date()} ~ {chunk_end.date()}")
         else:
             chunks = [(start_dt, end_dt)]
-            print(f"分段策略：一次性下载")
+            print("分段策略：一次性下载")
 
         # 下载每个股票的数据
         for i, stock_code in enumerate(stock_codes, 1):
@@ -136,7 +135,7 @@ class StockDataDownloader:
         # 打印统计
         self._print_summary()
 
-    def _generate_yearly_chunks(self, start: datetime, end: datetime) -> List[tuple]:
+    def _generate_yearly_chunks(self, start: datetime, end: datetime) -> list[tuple]:
         """生成分段列表（按年份）"""
         chunks = []
         current = start
@@ -152,8 +151,8 @@ class StockDataDownloader:
         return chunks
 
     def _download_from_tushare(
-        self, stock_code: str, chunks: List[tuple]
-    ) -> List[BarData]:
+        self, stock_code: str, chunks: list[tuple]
+    ) -> list[BarData]:
         """使用 Tushare 下载数据"""
         all_bars = []
 
@@ -195,8 +194,8 @@ class StockDataDownloader:
         return all_bars
 
     def _download_from_akshare(
-        self, stock_code: str, chunks: List[tuple]
-    ) -> List[BarData]:
+        self, stock_code: str, chunks: list[tuple]
+    ) -> list[BarData]:
         """使用 AKShare 下载数据"""
         all_bars = []
 
@@ -241,7 +240,7 @@ class StockDataDownloader:
 
     def _convert_tushare_to_bars(
         self, df: pd.DataFrame, stock_code: str
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """转换 Tushare 数据为 BarData"""
         # 确定交易所
         exchange = Exchange.SSE if stock_code.endswith(".SH") else Exchange.SZSE
@@ -265,14 +264,14 @@ class StockDataDownloader:
                     gateway_name="TUSHARE",
                 )
                 bars.append(bar)
-            except Exception as e:
+            except Exception:
                 continue
 
         return bars
 
     def _convert_akshare_to_bars(
         self, df: pd.DataFrame, stock_code: str
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """转换 AKShare 数据为 BarData"""
         # 确定交易所
         exchange = Exchange.SSE if stock_code.endswith(".SH") else Exchange.SZSE
@@ -296,12 +295,12 @@ class StockDataDownloader:
                     gateway_name="AKSHARE",
                 )
                 bars.append(bar)
-            except Exception as e:
+            except Exception:
                 continue
 
         return bars
 
-    def _deduplicate_bars(self, bars: List[BarData]) -> List[BarData]:
+    def _deduplicate_bars(self, bars: list[BarData]) -> list[BarData]:
         """去重（按日期）"""
         if not bars:
             return []
@@ -316,7 +315,7 @@ class StockDataDownloader:
         sorted_bars = sorted(bar_dict.values(), key=lambda x: x.datetime)
         return sorted_bars
 
-    def _save_and_validate(self, stock_code: str, bars: List[BarData], source: str):
+    def _save_and_validate(self, stock_code: str, bars: list[BarData], source: str):
         """保存数据并验证"""
         if not bars:
             print(f"  ✗ {source} 无数据保存")
@@ -336,7 +335,7 @@ class StockDataDownloader:
         self.stats[source.lower()]["success"] += 1
         self.stats[source.lower()]["total_bars"] += len(bars)
 
-    def _check_data_quality(self, bars: List[BarData], source: str):
+    def _check_data_quality(self, bars: list[BarData], source: str):
         """检查数据质量"""
         issues = []
 
@@ -358,7 +357,7 @@ class StockDataDownloader:
                 for issue in issues:
                     print(f"      - {issue}")
         else:
-            print(f"    ✓ 数据质量检查通过")
+            print("    ✓ 数据质量检查通过")
 
     def _print_summary(self):
         """打印统计汇总"""
@@ -408,8 +407,8 @@ def main():
     print("\n个股数据下载配置：")
     print(f"  股票数量：{len(stock_codes)}")
     print(f"  时间范围：{start_str} ~ {end_str}")
-    print(f"  分段策略：按年份（避免频率限制）")
-    print(f"  数据源：Tushare + AKShare（双源验证）")
+    print("  分段策略：按年份（避免频率限制）")
+    print("  数据源：Tushare + AKShare（双源验证）")
 
     # 创建下载器
     downloader = StockDataDownloader(LAB_PATH)

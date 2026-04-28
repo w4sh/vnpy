@@ -6,8 +6,7 @@ Tushare 股指期货数据下载脚本 V2
 
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import List
+from datetime import datetime
 import time
 
 # 添加项目路径
@@ -77,7 +76,7 @@ class TushareDataDownloaderV2:
 
     def _generate_contracts(
         self, symbol: str, start_year: int, end_year: int
-    ) -> List[str]:
+    ) -> list[str]:
         """
         生成合约代码列表
         :param symbol: 品种代码 (IF/IH/IC)
@@ -101,7 +100,7 @@ class TushareDataDownloaderV2:
         return contracts
 
     def download_daily_data(
-        self, start_date: str, end_date: str, symbols: List[str] = None
+        self, start_date: str, end_date: str, symbols: list[str] = None
     ):
         """
         下载日线数据
@@ -151,13 +150,13 @@ class TushareDataDownloaderV2:
 
         # 打印汇总
         print(f"\n{'=' * 60}")
-        print(f"下载完成！")
+        print("下载完成！")
         print(f"  成功：{success_count}/{len(symbols)}")
         if failed_symbols:
             print(f"  失败：{', '.join(failed_symbols)}")
         print(f"{'=' * 60}\n")
 
-    def _download_with_retry(self, symbol: str, start: str, end: str) -> List[BarData]:
+    def _download_with_retry(self, symbol: str, start: str, end: str) -> list[BarData]:
         """带重试机制的下载"""
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -213,7 +212,7 @@ class TushareDataDownloaderV2:
                         success_count += 1
                         print(f"        ✓ {len(df)} 条数据")
                     else:
-                        print(f"        - 无数据（可能合约未上市或已退市）")
+                        print("        - 无数据（可能合约未上市或已退市）")
 
                     # 防爬：延迟
                     time.sleep(self.REQUEST_DELAY)
@@ -246,7 +245,7 @@ class TushareDataDownloaderV2:
 
                 return df_merged
             else:
-                print(f"    没有成功下载任何数据")
+                print("    没有成功下载任何数据")
                 return None
 
         except Exception as e:
@@ -257,7 +256,7 @@ class TushareDataDownloaderV2:
 
         return None
 
-    def _convert_to_bars(self, df, symbol: str) -> List[BarData]:
+    def _convert_to_bars(self, df, symbol: str) -> list[BarData]:
         """转换 pandas DataFrame 为 BarData 列表"""
         bars = []
         # 使用 pandas 的 iterrows() 方法
@@ -301,9 +300,9 @@ def main():
     start_str = start_date.strftime("%Y%m%d")
 
     print(f"\n{'=' * 60}")
-    print(f"VNPY 股指期货数据下载器 V2")
+    print("VNPY 股指期货数据下载器 V2")
     print(f"{'=' * 60}")
-    print(f"数据源：Tushare")
+    print("数据源：Tushare")
     print(f"数据路径：{LAB_PATH}")
     print(f"时间范围：{start_str} - {end_str}")
     print(f"{'=' * 60}\n")
@@ -315,9 +314,9 @@ def main():
         # 下载数据
         downloader.download_daily_data(start_str, end_str)
 
-        print(f"\n✓ 数据下载完成！")
-        print(f"\n可以使用以下命令验证数据：")
-        print(f"  source venv/bin/activate")
+        print("\n✓ 数据下载完成！")
+        print("\n可以使用以下命令验证数据：")
+        print("  source venv/bin/activate")
         print(
             f"  python -c \"from vnpy.alpha import AlphaLab; lab = AlphaLab('{LAB_PATH}'); print(lab.get_bar_overview())\""
         )

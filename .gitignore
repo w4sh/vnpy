@@ -7,6 +7,7 @@ watch_*.sh
 # 数据文件
 lab_data/daily/*.parquet
 stock_list_all.csv
+data_cache/
 
 # Python
 __pycache__/

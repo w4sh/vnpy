@@ -8,7 +8,6 @@ import asyncio
 import sys
 from pathlib import Path
 from datetime import datetime
-import json
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
@@ -22,7 +21,7 @@ async def test_ui_interaction():
     print("  vn.py Web应用用户交互测试")
     print("=" * 60)
     print(f"测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"测试地址: http://localhost:5001")
+    print("测试地址: http://localhost:5001")
     print("=" * 60)
 
     async with async_playwright() as p:

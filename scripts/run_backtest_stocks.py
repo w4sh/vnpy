@@ -96,14 +96,14 @@ def run_backtest(
 
     # 保存统计结果
     with open(output_path / f"backtest_stats_stocks_{timestamp}.txt", "w") as f:
-        f.write(f"双均线策略A股回测结果\n")
-        f.write(f"=" * 60 + "\n")
+        f.write("双均线策略A股回测结果\n")
+        f.write("=" * 60 + "\n")
         f.write(f"回测时间：{start.date()} - {end.date()}\n")
         f.write(f"股票数量：{len(vt_symbols)}\n")
         f.write(f"快线周期：{fast_window} 日\n")
         f.write(f"慢线周期：{slow_window} 日\n")
         f.write(f"初始资金：{capital:,}\n")
-        f.write(f"=" * 60 + "\n")
+        f.write("=" * 60 + "\n")
         for key, value in stats.items():
             f.write(f"{key}: {value}\n")
 

@@ -8,8 +8,7 @@ A股数据下载脚本（Tushare优化版）
 
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import List, Set
+from datetime import datetime
 import time
 
 # 添加项目路径
@@ -104,7 +103,7 @@ class TushareStockDownloader:
             print(f"    ✗ 加载失败: {e}", flush=True)
             return pd.DataFrame()
 
-    def _load_progress(self) -> Set[str]:
+    def _load_progress(self) -> set[str]:
         """加载下载进度"""
         downloaded = set()
 
@@ -112,10 +111,10 @@ class TushareStockDownloader:
             try:
                 import json
 
-                with open(self.PROGRESS_FILE, "r") as f:
+                with open(self.PROGRESS_FILE) as f:
                     data = json.load(f)
                     downloaded = set(data.get("downloaded", []))
-            except:
+            except Exception:
                 pass
 
         # 从已下载文件读取
@@ -125,7 +124,7 @@ class TushareStockDownloader:
                 for file in daily_path.glob("*.parquet"):
                     code = file.stem.split(".")[0]
                     downloaded.add(code)
-        except:
+        except Exception:
             pass
 
         return downloaded
@@ -159,7 +158,7 @@ class TushareStockDownloader:
         limit: int = None,
     ):
         """下载所有股票"""
-        print(f"\n开始下载A股数据", flush=True)
+        print("\n开始下载A股数据", flush=True)
         print(f"时间范围: {start_date} ~ {end_date}", flush=True)
         print(f"总股票数: {len(self.all_stocks)}", flush=True)
         print(f"已下载: {len(self.downloaded_stocks)}", flush=True)
@@ -268,7 +267,7 @@ class TushareStockDownloader:
         original_code: str,
         start_date: str,
         end_date: str,
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """下载单只股票"""
         self._rate_limit_delay()
 
@@ -296,7 +295,7 @@ class TushareStockDownloader:
 
     def _convert_to_bars(
         self, df: pd.DataFrame, code: str, ts_code: str
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """转换为BarData"""
         # 确定交易所
         if ts_code.endswith(".SH"):
@@ -322,7 +321,7 @@ class TushareStockDownloader:
                     gateway_name="TUSHARE",
                 )
                 bars.append(bar)
-            except:
+            except Exception:
                 continue
 
         return bars

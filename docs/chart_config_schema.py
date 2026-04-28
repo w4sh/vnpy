@@ -3,7 +3,7 @@
 支持多种图表类型和数据源配置
 """
 
-from typing import List, Dict, Any, Optional, Literal
+from typing import Any
 from enum import Enum
 from datetime import datetime
 
@@ -42,7 +42,7 @@ class AxisConfig:
         self.format = format
         self.position = position
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "visible": self.visible,
@@ -70,7 +70,7 @@ class SeriesConfig:
         self.y_axis_id = y_axis_id
         self.visible = visible
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "data_key": self.data_key,
@@ -90,13 +90,13 @@ class ChartConfig:
         name: str,
         chart_type: ChartType,
         data_source: DataSourceType,
-        series: List[SeriesConfig],
+        series: list[SeriesConfig],
         title: str = "",
-        x_axis: Optional[AxisConfig] = None,
-        y_axis: Optional[AxisConfig] = None,
-        options: Optional[Dict[str, Any]] = None,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None,
+        x_axis: AxisConfig | None = None,
+        y_axis: AxisConfig | None = None,
+        options: dict[str, Any] | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
     ):
         self.id = id
         self.name = name
@@ -110,7 +110,7 @@ class ChartConfig:
         self.created_at = created_at or datetime.now()
         self.updated_at = updated_at or datetime.now()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典（用于JSON序列化）"""
         return {
             "id": self.id,
@@ -127,7 +127,7 @@ class ChartConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChartConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "ChartConfig":
         """从字典创建实例"""
         x_axis = AxisConfig(**data["x_axis"]) if data.get("x_axis") else None
         y_axis = AxisConfig(**data["y_axis"]) if data.get("y_axis") else None

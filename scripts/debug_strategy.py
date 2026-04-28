@@ -78,7 +78,7 @@ def debug_bollinger():
 
         # 计算统计
         stats = engine.calculate_statistics()
-        print(f"\n统计数据:")
+        print("\n统计数据:")
         print(f"  总收益率: {stats.get('total_return', 0):.2f}%")
         print(f"  交易次数: {stats.get('total_trade_count', 0)}")
 

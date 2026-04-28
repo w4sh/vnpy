@@ -34,8 +34,8 @@ class FlowStorage(FactorStorage):
     def load(
         self,
         symbols: list[str] | None = None,
-        start: datetime = None,
-        end: datetime = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pl.DataFrame:
         """加载资金流向数据"""
         if not self.file_path.exists():

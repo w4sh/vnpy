@@ -10,10 +10,8 @@ A股全市场数据下载脚本
 
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import List, Dict, Set
+from datetime import datetime
 import time
-import polars as pl
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -128,7 +126,7 @@ class AllAStockDownloader:
 
         return pd.DataFrame(stocks)
 
-    def _load_progress(self) -> Set[str]:
+    def _load_progress(self) -> set[str]:
         """加载下载进度"""
         downloaded = set()
 
@@ -136,15 +134,14 @@ class AllAStockDownloader:
             try:
                 import json
 
-                with open(self.PROGRESS_FILE, "r") as f:
+                with open(self.PROGRESS_FILE) as f:
                     data = json.load(f)
                     downloaded = set(data.get("downloaded", []))
-            except:
+            except Exception:
                 pass
 
         # 从已下载的文件中读取
         try:
-            import os
 
             daily_path = Path(self.lab_path) / "daily"
             if daily_path.exists():
@@ -152,7 +149,7 @@ class AllAStockDownloader:
                     # 提取股票代码
                     code = file.stem.split(".")[0]
                     downloaded.add(code)
-        except:
+        except Exception:
             pass
 
         return downloaded
@@ -254,7 +251,7 @@ class AllAStockDownloader:
                 time.sleep(self.REQUEST_DELAY)
 
             # 每批保存进度
-            print(f"\n  批次完成，保存进度...")
+            print("\n  批次完成，保存进度...")
             self._save_progress()
             print(f"  已完成: {len(self.downloaded_stocks)}/{len(self.all_stocks)}")
 
@@ -267,7 +264,7 @@ class AllAStockDownloader:
         exchange: str,
         start: str,
         end: str,
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """下载单只股票数据"""
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -297,7 +294,7 @@ class AllAStockDownloader:
 
     def _convert_to_bars(
         self, df: pd.DataFrame, code: str, exchange: str
-    ) -> List[BarData]:
+    ) -> list[BarData]:
         """转换数据为 BarData"""
         exchange_obj = Exchange.SSE if exchange == "SSE" else Exchange.SZSE
 
@@ -319,7 +316,7 @@ class AllAStockDownloader:
                     gateway_name="AKSHARE",
                 )
                 bars.append(bar)
-            except:
+            except Exception:
                 continue
 
         return bars
@@ -355,9 +352,9 @@ def main():
     print("A股全市场数据下载")
     print("=" * 60)
     print(f"时间范围: {start_str} ~ {end_str} (5年)")
-    print(f"数据源: AKShare (免费、无限制)")
-    print(f"分批下载: 每批 50 只")
-    print(f"断点续传: 支持")
+    print("数据源: AKShare (免费、无限制)")
+    print("分批下载: 每批 50 只")
+    print("断点续传: 支持")
     print("=" * 60)
 
     # 创建下载器

@@ -150,7 +150,7 @@ class FundamentalComputer(FactorComputer):
             if prev_year in income_dict:
                 prev_rev = self._safe_float(income_dict[prev_year].get("revenue"))
                 prev_net = self._safe_float(income_dict[prev_year].get("n_income"))
-                if prev_rev and prev_rev != 0:
+                if prev_rev and prev_rev != 0 and rev is not None:
                     rows.append(
                         (
                             end_date_str,
@@ -160,7 +160,7 @@ class FundamentalComputer(FactorComputer):
                             round(rev / abs(prev_rev) - 1, 6),
                         )
                     )
-                if prev_net and prev_net != 0:
+                if prev_net and prev_net != 0 and net is not None:
                     rows.append(
                         (
                             end_date_str,

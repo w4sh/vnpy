@@ -7,7 +7,6 @@
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple
 import polars as pl
 from itertools import product
 
@@ -33,11 +32,11 @@ class StrategyOptimizer:
 
     def optimize_bollinger_bands(
         self,
-        vt_symbols: List[str],
+        vt_symbols: list[str],
         start: datetime,
         end: datetime,
         capital: int = 1_000_000,
-    ) -> Tuple[Dict, float]:
+    ) -> tuple[dict, float]:
         """优化布林带策略参数"""
         print("=" * 60)
         print("布林带策略参数优化")
@@ -86,7 +85,7 @@ class StrategyOptimizer:
                 if score > best_score:
                     best_score = score
                     best_params = params
-                    print(f"  ✓ 找到更优参数！")
+                    print("  ✓ 找到更优参数！")
 
         # 保存优化结果
         self._save_optimization_results("布林带策略", results, best_params)
@@ -95,11 +94,11 @@ class StrategyOptimizer:
 
     def optimize_momentum(
         self,
-        vt_symbols: List[str],
+        vt_symbols: list[str],
         start: datetime,
         end: datetime,
         capital: int = 1_000_000,
-    ) -> Tuple[Dict, float]:
+    ) -> tuple[dict, float]:
         """优化动量策略参数"""
         print("=" * 60)
         print("动量策略参数优化")
@@ -148,7 +147,7 @@ class StrategyOptimizer:
                 if score > best_score:
                     best_score = score
                     best_params = params
-                    print(f"  ✓ 找到更优参数！")
+                    print("  ✓ 找到更优参数！")
 
         # 保存优化结果
         self._save_optimization_results("动量策略", results, best_params)
@@ -158,12 +157,12 @@ class StrategyOptimizer:
     def _backtest(
         self,
         strategy_class,
-        params: Dict,
-        vt_symbols: List[str],
+        params: dict,
+        vt_symbols: list[str],
         start: datetime,
         end: datetime,
         capital: int,
-    ) -> Tuple[Dict, bool]:
+    ) -> tuple[dict, bool]:
         """运行单次回测"""
         try:
             engine = BacktestingEngine(self.lab)
@@ -183,19 +182,19 @@ class StrategyOptimizer:
             stats = engine.calculate_statistics()
 
             return stats, True
-        except Exception as e:
+        except Exception:
             return None, False
 
-    def _generate_param_combinations(self, param_grid: Dict) -> List[Dict]:
+    def _generate_param_combinations(self, param_grid: dict) -> list[dict]:
         """生成参数组合"""
         keys = param_grid.keys()
         values = param_grid.values()
         combinations = product(*values)
 
-        return [dict(zip(keys, combo)) for combo in combinations]
+        return [dict(zip(keys, combo, strict=True)) for combo in combinations]
 
     def _save_optimization_results(
-        self, strategy_name: str, results: List[Dict], best_params: Dict
+        self, strategy_name: str, results: list[dict], best_params: dict
     ):
         """保存优化结果"""
         output_path = Path("/Users/w4sh8899/project/vnpy/output")

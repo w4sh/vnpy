@@ -233,7 +233,7 @@ def delete_position(position_id):
 # ==================== 策略管理接口 ====================
 
 
-@position_bp.route("/strategies", methods=["GET"])
+@position_bp.route("/portfolio/strategies", methods=["GET"])
 def get_strategies():
     """获取所有策略列表"""
     try:

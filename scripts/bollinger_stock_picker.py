@@ -14,8 +14,6 @@
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple
-import polars as pl
 from collections import defaultdict
 
 # 添加项目路径
@@ -35,7 +33,7 @@ class BollingerStockPicker:
 
     def scan_stocks(
         self,
-        stock_list: List[str],
+        stock_list: list[str],
         ma_window: int = 20,
         std_window: int = 20,
         dev_mult: float = 2.0,
@@ -43,7 +41,7 @@ class BollingerStockPicker:
         max_price: float = 300.0,
         min_volume: int = 1000000,
         scan_date: datetime = None,
-    ) -> Dict[str, List[Dict]]:
+    ) -> dict[str, list[dict]]:
         """
         扫描股票池
 
@@ -60,7 +58,7 @@ class BollingerStockPicker:
         print("=" * 60)
         print("布林带选股系统")
         print("=" * 60)
-        print(f"\n选股参数：")
+        print("\n选股参数：")
         print(f"  股票数量：{len(stock_list)}")
         print(f"  均线周期：{ma_window}")
         print(f"  标准差周期：{std_window}")
@@ -77,7 +75,7 @@ class BollingerStockPicker:
             start_date = scan_date - timedelta(days=365 * 5)
 
         print(f"  扫描日期：{scan_date.date()}")
-        print(f"\n开始扫描...")
+        print("\n开始扫描...")
 
         # 扫描计数
         total_scanned = 0
@@ -155,13 +153,13 @@ class BollingerStockPicker:
                         f"  已扫描：{i}/{len(stock_list)} ({i / len(stock_list) * 100:.1f}%)"
                     )
 
-            except Exception as e:
+            except Exception:
                 # 跳过有问题的股票
                 continue
 
         # 统计结果
-        print(f"\n扫描完成！")
-        print(f"=" * 60)
+        print("\n扫描完成！")
+        print("=" * 60)
         print(f"总扫描股票：{total_scanned}")
         print(
             f"符合条件：{oversold_count + overbought_count + breakout_up_count + breakout_down_count}"
@@ -175,7 +173,7 @@ class BollingerStockPicker:
 
     def calculate_bollinger_bands(
         self, bars: list, ma_window: int, std_window: int, dev_mult: float
-    ) -> Dict:
+    ) -> dict:
         """计算布林带指标"""
         if len(bars) < std_window:
             return None
@@ -217,7 +215,7 @@ class BollingerStockPicker:
             "bb_position": bb_position,
         }
 
-    def analyze_signals(self, bb_data: Dict, bar) -> List[str]:
+    def analyze_signals(self, bb_data: dict, bar) -> list[str]:
         """分析布林带信号"""
         signals = []
         bb_position = bb_data["bb_position"]
@@ -247,7 +245,6 @@ class BollingerStockPicker:
 
     def save_results(self, output_dir: str = "/Users/w4sh8899/project/vnpy/output"):
         """保存选股结果"""
-        import os
 
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
@@ -303,7 +300,7 @@ class BollingerStockPicker:
                 f.write(f"{signal_type.upper()}\n")
                 f.write("-" * 60 + "\n")
                 f.write(f"股票数量：{len(stocks)}\n")
-                f.write(f"股票列表：\n")
+                f.write("股票列表：\n")
 
                 for stock in stocks[:20]:  # 只显示前20个
                     f.write(
@@ -319,7 +316,7 @@ class BollingerStockPicker:
 
         print(f"✓ 汇总报告已保存：{filename.name}")
 
-    def get_stock_list(self, source: str = "local") -> List[str]:
+    def get_stock_list(self, source: str = "local") -> list[str]:
         """获取股票列表"""
         # 从 lab_data/daily 目录读取已下载的股票
         daily_dir = Path("/Users/w4sh8899/project/vnpy/lab_data/daily")
@@ -350,7 +347,7 @@ def main():
         return
 
     # 执行选股扫描
-    results = picker.scan_stocks(
+    _results = picker.scan_stocks(
         stock_list=stock_list,
         ma_window=20,
         std_window=20,
@@ -363,7 +360,7 @@ def main():
     # 保存结果
     picker.save_results()
 
-    print(f"\n选股完成！")
+    print("\n选股完成！")
 
 
 if __name__ == "__main__":

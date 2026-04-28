@@ -5,7 +5,6 @@ Web应用完整功能测试脚本
 """
 
 import sys
-import json
 import requests
 from datetime import datetime
 from pathlib import Path
@@ -117,7 +116,7 @@ class WebAppTester:
                 "capital": 1000000,
             }
 
-            print(f"发送回测请求: 双均线策略 (000001.SZSE)")
+            print("发送回测请求: 双均线策略 (000001.SZSE)")
             response = requests.post(
                 f"{self.base_url}/api/backtest",
                 json=payload,
@@ -199,7 +198,7 @@ class WebAppTester:
                 "capital": 1000000,
             }
 
-            print(f"发送组合回测请求: 双均线 + 布林带")
+            print("发送组合回测请求: 双均线 + 布林带")
             response = requests.post(
                 f"{self.base_url}/api/backtest", json=payload, timeout=180
             )
@@ -251,7 +250,7 @@ class WebAppTester:
                 "dev_mult": 2.0,
             }
 
-            print(f"发送选股请求: 超卖策略")
+            print("发送选股请求: 超卖策略")
             response = requests.post(
                 f"{self.base_url}/api/pick_stocks", json=payload, timeout=60
             )
@@ -310,7 +309,7 @@ class WebAppTester:
                 "end_date": "2024-12-31",
             }
 
-            print(f"发送策略对比请求: 3个策略")
+            print("发送策略对比请求: 3个策略")
             response = requests.post(
                 f"{self.base_url}/api/compare_strategies", json=payload, timeout=180
             )
@@ -466,7 +465,7 @@ def main():
     print("  vn.py Web应用完整功能测试")
     print("=" * 60)
     print(f"测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"测试地址: http://localhost:5001")
+    print("测试地址: http://localhost:5001")
 
     # 创建测试实例
     tester = WebAppTester()

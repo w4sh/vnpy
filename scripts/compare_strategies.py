@@ -90,7 +90,7 @@ def compare_strategies():
     end = datetime(2025, 4, 13)
     capital = 1_000_000
 
-    print(f"\n回测配置：")
+    print("\n回测配置：")
     print(f"  股票池：{vt_symbols}")
     print(f"  时间范围：{start.date()} ~ {end.date()}")
     print(f"  初始资金：{capital:,}")

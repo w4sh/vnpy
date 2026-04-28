@@ -6,7 +6,6 @@
 
 import sys
 from pathlib import Path
-from datetime import datetime
 import polars as pl
 
 # 添加项目路径
@@ -36,7 +35,9 @@ def compare_data_sources(stock_symbol: str, lab_path: str):
         print("[1/4] 加载 Tushare 数据...")
         df_tushare = lab.load_bar_df(
             symbol=stock_symbol,
-            exchange="SZSE" if stock_symbol.startswith("000") or stock_symbol.startswith("003") else "SSE",
+            exchange="SZSE"
+            if stock_symbol.startswith("000") or stock_symbol.startswith("003")
+            else "SSE",
             interval="daily",
             start="2020-04-13",
             end="2025-04-13",
@@ -49,9 +50,9 @@ def compare_data_sources(stock_symbol: str, lab_path: str):
                 tushare_data = df_tushare
                 print(f"  ✓ Tushare: {len(df_tushare)} 条")
             else:
-                print(f"  ✗ Tushare: 无数据")
+                print("  ✗ Tushare: 无数据")
         else:
-            print(f"  ✗ Tushare: 无数据")
+            print("  ✗ Tushare: 无数据")
     except Exception as e:
         print(f"  ✗ Tushare 加载失败：{str(e)}")
 
@@ -60,7 +61,9 @@ def compare_data_sources(stock_symbol: str, lab_path: str):
         print("\n[2/4] 加载 AKShare 数据...")
         df_akshare = lab.load_bar_df(
             symbol=stock_symbol,
-            exchange="SZSE" if stock_symbol.startswith("000") or stock_symbol.startswith("003") else "SSE",
+            exchange="SZSE"
+            if stock_symbol.startswith("000") or stock_symbol.startswith("003")
+            else "SSE",
             interval="daily",
             start="2020-04-13",
             end="2025-04-13",
@@ -73,9 +76,9 @@ def compare_data_sources(stock_symbol: str, lab_path: str):
                 akshare_data = df_akshare
                 print(f"  ✓ AKShare: {len(df_akshare)} 条")
             else:
-                print(f"  ✗ AKShare: 无数据")
+                print("  ✗ AKShare: 无数据")
         else:
-            print(f"  ✗ AKShare: 无数据")
+            print("  ✗ AKShare: 无数据")
     except Exception as e:
         print(f"  ✗ AKShare 加载失败：{str(e)}")
 
@@ -125,7 +128,8 @@ def compare_fields(df1: pl.DataFrame, df2: pl.DataFrame):
         else:
             status = "✗ 都不存在"
 
-        print(f"{vnpy_field:<20} | {field1 if has_1 else '(缺失)'}:<20} | {status}")
+        field2_str = field2 if has_2 else "(缺失)"
+        print(f"{vnpy_field:<20} | {field2_str:<20} | {status}")
 
     # 额外字段
     extra_1 = set(df1.columns) - {f[1] for f in field_mapping.values()}
@@ -145,14 +149,18 @@ def check_consistency(df1: pl.DataFrame, df2: pl.DataFrame):
 
     common_dates = df1_dates & df2_dates
 
-    print(f"\n数据范围对比:")
+    print("\n数据范围对比:")
     print(f"  Tushare: {len(df1_dates)} 个交易日")
     print(f"  AKShare: {len(df2_dates)} 个交易日")
     print(f"  共同: {len(common_dates)} 个交易日")
 
     # 筛选共同日期的数据
-    df1_common = df1.filter(pl.col("datetime").dt.strftime("%Y-%m-%d").is_in(common_dates))
-    df2_common = df2.filter(pl.col("datetime").dt.strftime("%Y-%m-%d").is_in(common_dates))
+    df1_common = df1.filter(
+        pl.col("datetime").dt.strftime("%Y-%m-%d").is_in(common_dates)
+    )
+    df2_common = df2.filter(
+        pl.col("datetime").dt.strftime("%Y-%m-%d").is_in(common_dates)
+    )
 
     if len(df1_common) > 0 and len(df2_common) > 0:
         # 随机抽取几条对比
@@ -174,7 +182,9 @@ def check_consistency(df1: pl.DataFrame, df2: pl.DataFrame):
 
             status = "✓ 一致" if pct_diff < 0.01 else f"⚠ 差异 {pct_diff:.2f}%"
 
-            print(f"{str(date)[:10]:<12} | {close1:<12.2f} | {close2:<12.2f} | {status}")
+            print(
+                f"{str(date)[:10]:<12} | {close1:<12.2f} | {close2:<12.2f} | {status}"
+            )
 
         # 统计差异
         df1_sorted = df1_common.sort("datetime")
@@ -184,12 +194,18 @@ def check_consistency(df1: pl.DataFrame, df2: pl.DataFrame):
         max_diff = close_diff.max()
         mean_diff = close_diff.mean()
 
-        print(f"\n价格差异统计:")
+        print("\n价格差异统计:")
         print(f"  最大差异: {max_diff:.2f} 元")
         print(f"  平均差异: {mean_diff:.2f} 元")
-        print(f"  差异<0.01元: {(close_diff < 0.01).sum()} 条 ({(close_diff < 0.01).sum() / len(close_diff) * 100:.1f}%)")
-        print(f"  差异<0.1元:  {(close_diff < 0.1).sum()} 条 ({(close_diff < 0.1).sum() / len(close_diff) * 100:.1f}%)")
-        print(f"  差异>1元:   {(close_diff > 1.0).sum()} 条 ({(close_diff > 1.0).sum() / len(close_diff) * 100:.1f}%)")
+        print(
+            f"  差异<0.01元: {(close_diff < 0.01).sum()} 条 ({(close_diff < 0.01).sum() / len(close_diff) * 100:.1f}%)"
+        )
+        print(
+            f"  差异<0.1元:  {(close_diff < 0.1).sum()} 条 ({(close_diff < 0.1).sum() / len(close_diff) * 100:.1f}%)"
+        )
+        print(
+            f"  差异>1元:   {(close_diff > 1.0).sum()} 条 ({(close_diff > 1.0).sum() / len(close_diff) * 100:.1f}%)"
+        )
 
 
 def main():

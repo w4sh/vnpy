@@ -161,7 +161,7 @@ class AkshareDataDownloader:
         :param end: 结束日期 YYYYMMDD
         """
         try:
-            print(f"    调用 AKShare API: futures_zh_daily_sina")
+            print("    调用 AKShare API: futures_zh_daily_sina")
             print(f"    参数: symbol={symbol}, adjust='0'")
 
             # AKShare 获取期货日线数据（新浪财经源）
@@ -169,7 +169,7 @@ class AkshareDataDownloader:
             df = ak.futures_zh_daily_sina(symbol=symbol)
 
             if df is None or len(df) == 0:
-                print(f"    ⚠ AKShare 返回空数据")
+                print("    ⚠ AKShare 返回空数据")
                 return None
 
             print(f"    ✓ AKShare 返回 {len(df)} 条数据")
@@ -182,7 +182,7 @@ class AkshareDataDownloader:
             df = df[(df["date"] >= start) & (df["date"] <= end)]
 
             if len(df) == 0:
-                print(f"    ⚠ 过滤后无数据")
+                print("    ⚠ 过滤后无数据")
                 return None
 
             print(f"    ✓ 过滤后剩余 {len(df)} 条数据")

@@ -16,8 +16,6 @@
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
-import polars as pl
 from collections import defaultdict
 
 # 添加项目路径
@@ -38,7 +36,7 @@ class AdvancedBollingerPicker:
     def scan_with_strategy(
         self,
         strategy: str = "oversold",
-        stock_list: List[str] = None,
+        stock_list: list[str] = None,
         ma_window: int = 20,
         std_window: int = 20,
         dev_mult: float = 2.0,
@@ -46,7 +44,7 @@ class AdvancedBollingerPicker:
         max_price: float = 300.0,
         min_volume: int = 1000000,
         top_n: int = 20,  # 只返回前N个结果
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         按策略选股
 
@@ -65,7 +63,7 @@ class AdvancedBollingerPicker:
 
         print(f"扫描股票：{len(stock_list)} 只")
         print(f"选股策略：{strategy}")
-        print(f"参数设置：")
+        print("参数设置：")
         print(f"  均线周期：{ma_window}")
         print(f"  标准差周期：{std_window}")
         print(f"  标准差倍数：{dev_mult}")
@@ -131,7 +129,7 @@ class AdvancedBollingerPicker:
                         f"  已扫描：{i}/{len(stock_list)} ({i / len(stock_list) * 100:.1f}%)"
                     )
 
-            except Exception as e:
+            except Exception:
                 continue
 
         # 按得分排序并返回前N个
@@ -153,7 +151,7 @@ class AdvancedBollingerPicker:
 
         return candidates[:top_n]
 
-    def _get_all_stocks(self) -> List[str]:
+    def _get_all_stocks(self) -> list[str]:
         """获取所有股票列表"""
         daily_dir = Path("/Users/w4sh8899/project/vnpy/lab_data/daily")
         if daily_dir.exists():
@@ -162,7 +160,7 @@ class AdvancedBollingerPicker:
 
     def _calculate_bollinger_bands(
         self, bars: list, ma_window: int, std_window: int, dev_mult: float
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """计算布林带指标"""
         if len(bars) < std_window:
             return None
@@ -202,7 +200,7 @@ class AdvancedBollingerPicker:
             "bb_position": bb_position,
         }
 
-    def _check_strategy(self, strategy: str, bb_data: Dict, bars: list) -> bool:
+    def _check_strategy(self, strategy: str, bb_data: dict, bars: list) -> bool:
         """检查股票是否符合策略条件"""
         bb_position = bb_data["bb_position"]
 
@@ -248,7 +246,7 @@ class AdvancedBollingerPicker:
 
         return False
 
-    def _calculate_score(self, strategy: str, bb_data: Dict, bars: list) -> float:
+    def _calculate_score(self, strategy: str, bb_data: dict, bars: list) -> float:
         """计算股票得分（用于排序）"""
         score = 0.0
         bb_position = bb_data["bb_position"]

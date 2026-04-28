@@ -1505,17 +1505,15 @@
             }, 3000);
         }
 
-        // 页面加载完成后初始化
-        $(document).ready(function() {
-            loadStrategies();
-        });
-
         // ==================== 持仓管理功能 ====================
 
         // 显示持仓管理子页面
         function showPositionSubPage(subPageName) {
-            $('.position-subpage').removeClass('active');
-            $(`#position-${subPageName}-subpage`).addClass('active');
+            // 隐藏所有子页面并移除active类，同时清除内联display样式
+            $('.position-subpage').removeClass('active').attr('style', '');
+            // 显示目标子页面并添加active类
+            const targetPage = $(`#position-${subPageName}-subpage`);
+            targetPage.addClass('active').attr('style', '');
 
             // 加载对应数据
             if (subPageName === 'overview') {
@@ -1628,7 +1626,7 @@
 
         // 加载策略列表（用于持仓管理）
         function loadStrategiesForPosition() {
-            $.get('/api/strategies', function(response) {
+            $.get('/api/portfolio/strategies', function(response) {
                 if (response.success) {
                     displayStrategiesGrid(response.strategies);
                     updateStrategySelects(response.strategies);

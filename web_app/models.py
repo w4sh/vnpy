@@ -194,6 +194,32 @@ class DailyProfitLoss(Base):
         return f"<DailyProfitLoss(id={self.id}, record_date={self.record_date}, position_id={self.position_id})>"
 
 
+class CandidateStock(Base):
+    """候选股推荐表 - 存储每日筛选推荐结果"""
+
+    __tablename__ = "candidate_stocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)  # 股票代码 (000001.SZSE)
+    name = Column(String(50))  # 股票名称
+    score = Column(Numeric(8, 2), nullable=False)  # 综合评分 (0-100)
+    rank = Column(Integer, nullable=False)  # 当日排名
+    screening_date = Column(Date, nullable=False, index=True)  # 筛选日期
+    momentum_score = Column(Numeric(8, 2))  # 动量因子分
+    trend_score = Column(Numeric(8, 2))  # 趋势因子分
+    volume_score = Column(Numeric(8, 2))  # 量价因子分
+    volatility_score = Column(Numeric(8, 2))  # 波动率因子分
+    current_price = Column(Numeric(10, 2))  # 当日收盘价
+    total_return = Column(Numeric(8, 4))  # 回测总收益率
+    annual_return = Column(Numeric(8, 4))  # 回测年化收益
+    max_drawdown = Column(Numeric(8, 4))  # 回测最大回撤
+    sharpe_ratio = Column(Numeric(6, 4))  # 回测夏普比率
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self) -> str:
+        return f"<CandidateStock(id={self.id}, symbol={self.symbol}, rank={self.rank}, date={self.screening_date})>"
+
+
 # 数据库初始化和辅助函数
 def init_database(db_url: str = "sqlite:///position_management.db") -> Session:
     """初始化数据库"""
@@ -213,6 +239,7 @@ def get_db_session(db_url="sqlite:///position_management.db"):
     from sqlalchemy.orm import sessionmaker
 
     engine = create_engine(db_url)
+    Base.metadata.create_all(engine)  # 确保所有表都已创建
     Session = sessionmaker(bind=engine)
     return Session()
 

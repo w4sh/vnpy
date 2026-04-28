@@ -3,7 +3,8 @@
 A股数据下载进度监控
 """
 
-import os
+import subprocess
+
 import polars as pl
 from pathlib import Path
 
@@ -34,7 +35,7 @@ if daily_path.exists():
             try:
                 df = pl.read_parquet(file)
                 total_bars += len(df)
-            except:
+            except Exception:
                 pass
 
         estimated_total = total_bars * (len(stock_files) / min(10, len(stock_files)))
@@ -43,7 +44,7 @@ if daily_path.exists():
         print(f"平均每只: {estimated_total / len(stock_files):.0f} 条")
 
         # 最新下载的5只股票
-        print(f"\n最新下载的5只股票:")
+        print("\n最新下载的5只股票:")
         sorted_files = sorted(
             stock_files, key=lambda f: f.stat().st_mtime, reverse=True
         )[:5]
@@ -54,7 +55,7 @@ if daily_path.exists():
                 if len(df) > 0:
                     latest_date = df["datetime"].max()
                     print(f"  {file.stem}: {len(df)} 条 (最新: {latest_date.date()})")
-            except:
+            except Exception:
                 print(f"  {file.stem}: 读取失败")
     else:
         print("\n尚未下载任何股票数据")
@@ -63,9 +64,6 @@ else:
     print("\n数据目录不存在")
 
 print("\n" + "=" * 60)
-
-# 进程状态
-import subprocess
 
 try:
     result = subprocess.run(["ps", "-aux"], capture_output=True, text=True)
@@ -83,7 +81,7 @@ try:
             print(f"  PID: {pid}, CPU: {cpu}%, 内存: {mem}")
     else:
         print("下载进程状态: 未运行")
-except:
+except Exception:
     pass
 
 print("=" * 60)

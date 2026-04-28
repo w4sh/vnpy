@@ -124,7 +124,7 @@ def test_daily_profit_loss_table(db_session):
     from sqlalchemy import inspect
 
     # 创建测试数据
-    strategy = Strategy(name="测试", initial_capital=1000000)
+    strategy = Strategy(name="测试PL", initial_capital=1000000)
     db_session.add(strategy)
     db_session.commit()
 
