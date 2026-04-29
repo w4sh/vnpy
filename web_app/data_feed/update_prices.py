@@ -5,6 +5,7 @@
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -110,7 +111,7 @@ def main():
     parser.add_argument(
         "--token",
         type=str,
-        default="8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb",
+        default=os.environ.get("TUSHARE_TOKEN", ""),
         help="Tushare Pro API Token",
     )
     parser.add_argument(

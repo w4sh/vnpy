@@ -4,6 +4,7 @@ Tushare 股指期货数据下载脚本 V3
 修复：更保守的延迟策略、更好的重试机制、合约智能过滤
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -20,9 +21,6 @@ from vnpy.alpha import AlphaLab
 
 class TushareDataDownloaderV3:
     """Tushare 数据下载器 V3 - 稳健版本"""
-
-    # Tushare Token
-    TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
 
     # 合约交易参数（使用 vn.py 格式）
     CONTRACT_SETTINGS = {
@@ -55,7 +53,7 @@ class TushareDataDownloaderV3:
     def __init__(self, lab_path: str):
         """初始化"""
         print("初始化 Tushare 连接...")
-        ts.set_token(self.TUSHARE_TOKEN)
+        ts.set_token(os.environ["TUSHARE_TOKEN"])
         self.pro = ts.pro_api()
 
         print("初始化 AlphaLab...")

@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -19,6 +18,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from vnpy.alpha.factors.base import DataFetcher
+from vnpy.alpha.factors.tushare_config import get_pro_api
 
 if TYPE_CHECKING:
     from vnpy.alpha.factors.rate_limiter import RateLimiter
@@ -38,17 +38,6 @@ def _to_vnpy_code(ts_code: str) -> str:
     code, suffix = ts_code.split(".")
     exchange = "SSE" if suffix == "SH" else "SZSE"
     return f"{code}.{exchange}"
-
-
-def get_pro_api():
-    """获取 Tushare Pro API 实例"""
-    import tushare as ts
-
-    token = os.environ.get("TUSHARE_TOKEN", "")
-    if not token:
-        raise RuntimeError("TUSHARE_TOKEN 环境变量未设置")
-    ts.set_token(token)
-    return ts.pro_api()
 
 
 class FundamentalFetcher(DataFetcher):

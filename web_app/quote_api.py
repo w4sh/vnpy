@@ -4,6 +4,8 @@
 提供价格更新、行情查询等功能
 """
 
+import os
+
 from flask import Blueprint, jsonify
 from data_feed.quote_service import get_quote_service
 from data_feed.update_prices import update_position_prices
@@ -13,8 +15,13 @@ import traceback
 # 创建蓝图
 quote_bp = Blueprint("quote", __name__, url_prefix="/api/quote")
 
-# Tushare Token (用户提供的120积分账户)
-TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
+
+def _get_token() -> str:
+    """获取 Tushare token（从环境变量）"""
+    token = os.environ.get("TUSHARE_TOKEN", "")
+    if not token:
+        raise RuntimeError("TUSHARE_TOKEN 环境变量未设置")
+    return token
 
 
 @quote_bp.route("/update", methods=["POST"])
@@ -22,7 +29,7 @@ def update_prices():
     """更新所有持仓的当前价格"""
     try:
         # 执行更新
-        update_position_prices(TUSHARE_TOKEN, dry_run=False)
+        update_position_prices(_get_token(), dry_run=False)
 
         return jsonify(
             {
@@ -40,7 +47,7 @@ def update_prices():
 def get_quote(symbol):
     """获取单个标的的实时行情"""
     try:
-        quote_service = get_quote_service(TUSHARE_TOKEN)
+        quote_service = get_quote_service(_get_token())
 
         # 判断是股票还是期货
         if (
@@ -65,7 +72,7 @@ def get_quote(symbol):
 def get_usage():
     """获取API使用情况"""
     try:
-        quote_service = get_quote_service(TUSHARE_TOKEN)
+        quote_service = get_quote_service(_get_token())
         usage = quote_service.get_usage_info()
 
         return jsonify({"success": True, "usage": usage})
@@ -78,7 +85,7 @@ def get_usage():
 def test_connection():
     """测试Tushare连接"""
     try:
-        quote_service = get_quote_service(TUSHARE_TOKEN)
+        quote_service = get_quote_service(_get_token())
 
         # 尝试获取一个测试标的的数据
         test_quote = quote_service.get_stock_quote("000001.SZ")  # 平安银行

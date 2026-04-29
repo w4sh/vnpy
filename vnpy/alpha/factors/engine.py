@@ -267,6 +267,7 @@ class FactorEngine:
             total_updated = 0
             total_batches = 0
             total_failed: list[dict] = []
+            total_empty = 0  # 有拉取数据但计算后无因子产出的股票
 
             # 分批处理（individual fetcher calls use
             # rate_limiter.acquire() to throttle）
@@ -275,12 +276,24 @@ class FactorEngine:
 
                 batch_updated = 0
                 batch_failed: list[dict] = []
+                batch_empty = 0
 
                 for symbol in batch:
                     ts_code = _to_tushare_code(symbol)
                     try:
                         income_raw = pipeline.fetcher.fetch_income(ts_code)
                         fina_raw = pipeline.fetcher.fetch_fina_indicator(ts_code)
+
+                        if income_raw.is_empty() or fina_raw.is_empty():
+                            logger.warning(
+                                "季频因子数据为空 %s: income=%d, fina=%d",
+                                symbol,
+                                len(income_raw),
+                                len(fina_raw),
+                            )
+                            batch_empty += 1
+                            continue
+
                         disc_raw = pipeline.fetcher.fetch_disclosure_dates(ts_code)
 
                         quarterly = pipeline.computer.compute_quarterly(
@@ -292,12 +305,21 @@ class FactorEngine:
                             else:
                                 pipeline.storage.save(quarterly)
                             batch_updated += 1
+                        else:
+                            logger.warning(
+                                "季频因子计算无产出 %s: income=%d, fina=%d",
+                                symbol,
+                                len(income_raw),
+                                len(fina_raw),
+                            )
+                            batch_empty += 1
                     except Exception as e:
                         logger.warning("季频因子计算失败 %s: %s", symbol, e)
                         batch_failed.append({"symbol": symbol, "error": str(e)})
 
                 total_updated += batch_updated
                 total_failed.extend(batch_failed)
+                total_empty += batch_empty
                 total_batches += 1
 
                 # 更新 checkpoint
@@ -311,11 +333,13 @@ class FactorEngine:
                 )
 
                 logger.info(
-                    "批次 %d/%d: 成功 %d/%d, 累计 %d/%d",
+                    "批次 %d/%d: 成功 %d/%d, 空=%d, 失败=%d, 累计 %d/%d",
                     total_batches,
                     (len(pending) + batch_size - 1) // batch_size,
                     batch_updated,
                     len(batch),
+                    batch_empty,
+                    len(batch_failed),
                     total_updated,
                     len(pending),
                 )
@@ -330,12 +354,14 @@ class FactorEngine:
                 "symbols_updated": total_updated,
                 "batches": total_batches,
                 "failed_count": len(total_failed),
+                "empty_count": total_empty,
                 "status": "completed",
             }
             logger.info(
-                "管线 '%s' 分批季频完成: 更新 %d, 失败 %d, 共 %d 批",
+                "管线 '%s' 分批季频完成: 更新 %d, 空数据 %d, 失败 %d, 共 %d 批",
                 name,
                 total_updated,
+                total_empty,
                 len(total_failed),
                 total_batches,
             )
@@ -411,11 +437,23 @@ class FactorEngine:
             return {"error": "computer 类型不匹配"}
 
         total_computed = 0
+        total_empty = 0
         for symbol in symbols:
             ts_code = _to_tushare_code(symbol)
             try:
                 income_raw = pipeline.fetcher.fetch_income(ts_code)
                 fina_raw = pipeline.fetcher.fetch_fina_indicator(ts_code)
+
+                if income_raw.is_empty() or fina_raw.is_empty():
+                    logger.warning(
+                        "季频因子数据为空 %s: income=%d, fina=%d",
+                        symbol,
+                        len(income_raw),
+                        len(fina_raw),
+                    )
+                    total_empty += 1
+                    continue
+
                 disc_raw = pipeline.fetcher.fetch_disclosure_dates(ts_code)
 
                 quarterly = pipeline.computer.compute_quarterly(
@@ -428,8 +466,16 @@ class FactorEngine:
                     else:
                         pipeline.storage.save(quarterly)
                     total_computed += 1
+                else:
+                    logger.warning(
+                        "季频因子计算无产出 %s: income=%d, fina=%d",
+                        symbol,
+                        len(income_raw),
+                        len(fina_raw),
+                    )
+                    total_empty += 1
             except Exception as e:
                 logger.warning(f"季频因子计算失败 {symbol}: {e}")
                 continue
 
-        return {"symbols_updated": total_computed}
+        return {"symbols_updated": total_computed, "empty_count": total_empty}

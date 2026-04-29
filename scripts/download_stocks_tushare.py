@@ -6,6 +6,7 @@ A股数据下载脚本（Tushare优化版）
 - 批量下载优化
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -26,7 +27,6 @@ class TushareStockDownloader:
     """Tushare股票下载器"""
 
     # Tushare配置
-    TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
     API_RATE_LIMIT = 50  # 每分钟50次
     SAFE_DELAY = 1.2  # 安全延迟（60/50 = 1.2秒）
 
@@ -48,7 +48,7 @@ class TushareStockDownloader:
         print("=" * 60, flush=True)
 
         print("\n[1/4] 初始化Tushare...", flush=True)
-        ts.set_token(self.TUSHARE_TOKEN)
+        ts.set_token(os.environ["TUSHARE_TOKEN"])
         self.pro = ts.pro_api()
         print("  ✓ Tushare API已连接", flush=True)
 

@@ -8,6 +8,7 @@
 4. 自动去重和合并
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -28,9 +29,6 @@ from vnpy.alpha import AlphaLab
 class StockDataDownloader:
     """个股数据下载器（双数据源）"""
 
-    # Tushare Token
-    TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
-
     # 延迟设置（秒）
     TUSHARE_DELAY = 0.5  # Tushare 免费版：每分钟200次左右
     AKSHARE_DELAY = 0.1  # AKShare：无限制
@@ -43,7 +41,7 @@ class StockDataDownloader:
 
         # 初始化 Tushare
         print("\n[1/3] 初始化 Tushare...")
-        ts.set_token(self.TUSHARE_TOKEN)
+        ts.set_token(os.environ["TUSHARE_TOKEN"])
         self.pro = ts.pro_api()
         print("  ✓ Tushare 连接成功")
 

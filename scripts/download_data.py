@@ -5,6 +5,7 @@ Tushare 股指期货数据下载脚本
 防爬：添加延迟和重试机制，避免被封禁
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -22,9 +23,6 @@ from vnpy.alpha import AlphaLab
 
 class TushareDataDownloader:
     """Tushare 数据下载器"""
-
-    # Tushare Token
-    TUSHARE_TOKEN = "8338d9ae4c26c3ec32cffbd1b337d97228c22ba84cea0996410513bb"
 
     # 股指期货合约映射（注意：Tushare 使用 .CFX 后缀，vn.py 使用 CFFEX 交易所）
     FUTURES_MAP = {
@@ -69,7 +67,7 @@ class TushareDataDownloader:
         :param lab_path: AlphaLab 数据路径
         """
         print("初始化 Tushare 连接...")
-        ts.set_token(self.TUSHARE_TOKEN)
+        ts.set_token(os.environ["TUSHARE_TOKEN"])
         self.pro = ts.pro_api()
 
         print("初始化 AlphaLab...")

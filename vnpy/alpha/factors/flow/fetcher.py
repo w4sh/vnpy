@@ -6,26 +6,15 @@
 """
 
 import logging
-import os
 import time
 from datetime import datetime, timedelta
 
 import polars as pl
 
 from vnpy.alpha.factors.base import DataFetcher
+from vnpy.alpha.factors.tushare_config import get_pro_api
 
 logger = logging.getLogger(__name__)
-
-
-def get_pro_api():
-    """获取 Tushare Pro API 实例"""
-    import tushare as ts
-
-    token = os.environ.get("TUSHARE_TOKEN", "")
-    if not token:
-        raise RuntimeError("TUSHARE_TOKEN 环境变量未设置")
-    ts.set_token(token)
-    return ts.pro_api()
 
 
 class FlowFetcher(DataFetcher):
