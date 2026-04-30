@@ -25,7 +25,7 @@ from scripts.momentum_strategy import MomentumStrategy
 from scripts.advanced_bollinger_picker import AdvancedBollingerPicker
 
 # 导入股票名称映射
-from web_app.stock_names import format_stock_symbol
+from web_app.stock_names import format_stock_symbol, get_stock_name
 from web_app.models import CandidateStock, get_db_session
 
 # 导入持仓管理API蓝图
@@ -39,6 +39,9 @@ from web_app.analytics_api import analytics_bp
 
 # 导入前瞻因子API蓝图
 from web_app.factor_api import factor_bp
+
+# 导入因子评估API蓝图
+from web_app.evaluation_api import eval_bp
 
 # 导入定时任务
 from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
@@ -55,6 +58,8 @@ app.register_blueprint(strategy_bp)
 app.register_blueprint(analytics_bp)
 # 注册前瞻因子蓝图
 app.register_blueprint(factor_bp)
+# 注册因子评估蓝图
+app.register_blueprint(eval_bp)
 
 # 初始化定时任务
 init_scheduler()
@@ -460,13 +465,23 @@ def get_latest_candidates():
             )
 
         screening_date = latest[0].screening_date.strftime("%Y-%m-%d")
+
+        # 统计该日候选股总数作为股票池规模参考
+        from sqlalchemy import func as sa_func
+
+        pool_count = (
+            session.query(sa_func.count(CandidateStock.id))
+            .filter(CandidateStock.screening_date == latest[0].screening_date)
+            .scalar()
+        ) or 0
+
         results = []
         for c in latest:
             results.append(
                 {
                     "rank": c.rank,
                     "symbol": c.symbol,
-                    "name": c.name,
+                    "name": c.name or get_stock_name(c.symbol),
                     "score": float(c.score) if c.score else 0,
                     "momentum_score": float(c.momentum_score)
                     if c.momentum_score
@@ -488,8 +503,8 @@ def get_latest_candidates():
             {
                 "success": True,
                 "screening_date": screening_date,
-                "stock_pool_size": 0,  # 前端不需要展示
-                "elapsed_seconds": 0,
+                "stock_pool_size": pool_count,  # 该日期所有候选股数量
+                "elapsed_seconds": 0,  # 历史记录中无耗时数据
                 "results": results,
             }
         )
@@ -529,7 +544,7 @@ def get_candidates_history():
                 {
                     "rank": c.rank,
                     "symbol": c.symbol,
-                    "name": c.name,
+                    "name": c.name or get_stock_name(c.symbol),
                     "score": float(c.score) if c.score else 0,
                     "momentum_score": float(c.momentum_score)
                     if c.momentum_score

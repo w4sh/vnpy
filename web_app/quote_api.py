@@ -7,8 +7,8 @@
 import os
 
 from flask import Blueprint, jsonify
-from data_feed.quote_service import get_quote_service
-from data_feed.update_prices import update_position_prices
+from web_app.data_feed.quote_service import get_quote_service
+from web_app.data_feed.update_prices import update_position_prices
 from datetime import datetime
 import traceback
 

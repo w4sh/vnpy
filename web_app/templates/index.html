@@ -740,10 +740,55 @@
                 <!-- 风险分析子页面 -->
                 <div id="position-risk-subpage" class="position-subpage" style="display: none;">
                     <div class="section">
-                        <h3>⚠️ 风险分析</h3>
-                        <div class="info-box">
-                            <h4>💡 风险提示</h4>
-                            <p>风险分析功能正在开发中，敬请期待...</p>
+                        <h3>因子评估分析</h3>
+                        <div id="eval-loading" class="loading" style="display:none;">加载评估数据中</div>
+                        <div id="eval-error" class="error" style="display:none;"></div>
+
+                        <!-- 评估概览 -->
+                        <div id="eval-overview" style="display:none;">
+                            <div class="info-box">
+                                <h4 id="eval-title">最新因子评估</h4>
+                                <p id="eval-meta" style="color:#666;font-size:0.9em;"></p>
+                            </div>
+
+                            <h5 style="margin-top:20px;">因子 IC 分析</h5>
+                            <div style="overflow-x:auto;">
+                                <table class="results-table" id="eval-ic-table">
+                                    <thead>
+                                        <tr>
+                                            <th>因子</th>
+                                            <th>预测周期</th>
+                                            <th>IC Mean</th>
+                                            <th>IC Std</th>
+                                            <th>IC IR</th>
+                                            <th>IC >0 比例</th>
+                                            <th>样本数</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="eval-ic-tbody"></tbody>
+                                </table>
+                            </div>
+
+                            <h5 style="margin-top:20px;">因子综合评分</h5>
+                            <div style="overflow-x:auto;">
+                                <table class="results-table" id="eval-score-table">
+                                    <thead>
+                                        <tr>
+                                            <th>因子</th>
+                                            <th>IC 得分</th>
+                                            <th>分组得分</th>
+                                            <th>稳定性得分</th>
+                                            <th>综合得分</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="eval-score-tbody"></tbody>
+                                </table>
+                            </div>
+
+                            <h5 style="margin-top:20px;">因子相关性矩阵</h5>
+                            <div style="overflow-x:auto;" id="eval-corr-container">
+                                <table class="results-table" id="eval-corr-table"></table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -768,6 +813,13 @@
                                 <strong id="candidate-elapsed">-</strong>
                             </div>
                         </div>
+                    </div>
+                    <!-- 历史日期查询 -->
+                    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                        <label style="font-weight:bold;color:#555;">查看历史：</label>
+                        <input type="date" id="candidate-history-date" class="form-control" style="width:auto;">
+                        <button class="btn btn-sm" onclick="loadCandidateHistory()">查询</button>
+                        <button class="btn btn-sm btn-secondary" onclick="loadCandidates()">最新</button>
                     </div>
                 </div>
 
@@ -1039,12 +1091,26 @@
         function showPage(pageName) {
             $('.page').removeClass('active');
             $('#' + pageName + '-page').addClass('active');
-            $('.nav-btn').removeClass('active');
-            event.target.classList.add('active');
+            // 通过 pageName 定位导航按钮，不再依赖全局 event
+            $('.nav-btn').removeClass('active').filter(function() {
+                return $(this).text().trim().indexOf(getPageLabel(pageName)) !== -1;
+            }).addClass('active');
 
             if (pageName === 'candidate') {
                 loadCandidates();
             }
+        }
+
+        function getPageLabel(pageName) {
+            var labels = {
+                'backtest': '策略回测',
+                'picker': '智能选股',
+                'compare': '策略对比',
+                'position': '持仓管理',
+                'candidate': '股票候选',
+                'indicators': '前瞻指标'
+            };
+            return labels[pageName] || '';
         }
 
         // 加载策略列表
@@ -1505,6 +1571,126 @@
             }, 3000);
         }
 
+        // ==================== 因子评估 / 风险分析功能 ====================
+
+        function loadRiskAnalysis() {
+            var loadingEl = $('#eval-loading');
+            var errorEl = $('#eval-error');
+            var overviewEl = $('#eval-overview');
+
+            loadingEl.show();
+            errorEl.hide();
+            overviewEl.hide();
+
+            $.get('/api/evaluation/latest', function(response) {
+                loadingEl.hide();
+
+                if (!response.success) {
+                    errorEl.text(response.error || '加载评估数据失败').show();
+                    return;
+                }
+
+                overviewEl.show();
+                $('#eval-title').text('因子评估: ' + (response.filename || ''));
+                $('#eval-meta').text('因子数: ' + (response.factor_names ? response.factor_names.length : 0) +
+                    ' | 预测周期: ' + (response.horizons || []).join('d, ') + 'd');
+
+                renderICTable(response.ic_summary || []);
+                renderScoreTable(response.scores || [], response.factor_names || []);
+                renderCorrMatrix(response.correlation_matrix || [], response.factor_names || []);
+
+            }).fail(function(xhr) {
+                loadingEl.hide();
+                errorEl.text('请求失败: ' + (xhr.statusText || '网络错误')).show();
+            });
+        }
+
+        function renderICTable(icSummary) {
+            var tbody = $('#eval-ic-tbody');
+            tbody.empty();
+
+            if (icSummary.length === 0) {
+                tbody.html('<tr><td colspan="7" style="text-align:center;color:#999;">暂无IC数据</td></tr>');
+                return;
+            }
+
+            icSummary.forEach(function(row) {
+                var irClass = row.ic_ir >= 0.3 ? 'positive' : (row.ic_ir >= 0.1 ? '' : 'negative');
+                var ratioClass = row.ic_positive_ratio >= 0.55 ? 'positive' : '';
+                tbody.append(
+                    '<tr>' +
+                    '<td><strong>' + escapeHtml(row.factor) + '</strong></td>' +
+                    '<td>' + escapeHtml(row.horizon) + '</td>' +
+                    '<td>' + row.ic_mean.toFixed(4) + '</td>' +
+                    '<td>' + row.ic_std.toFixed(4) + '</td>' +
+                    '<td class="' + irClass + '">' + row.ic_ir.toFixed(4) + '</td>' +
+                    '<td class="' + ratioClass + '">' + (row.ic_positive_ratio * 100).toFixed(1) + '%</td>' +
+                    '<td>' + row.n_periods + '</td>' +
+                    '</tr>'
+                );
+            });
+        }
+
+        function renderScoreTable(scores, factorNames) {
+            var tbody = $('#eval-score-tbody');
+            tbody.empty();
+
+            if (!scores || scores.length === 0) {
+                tbody.html('<tr><td colspan="5" style="text-align:center;color:#999;">暂无评分数据</td></tr>');
+                return;
+            }
+
+            // scores is [[factor_name, total_score], ...]
+            scores.forEach(function(pair) {
+                var factor = pair[0];
+                var score = pair[1];
+                var scoreClass = score >= 30 ? 'positive' : (score >= 20 ? '' : 'negative');
+                tbody.append(
+                    '<tr>' +
+                    '<td><strong>' + escapeHtml(factor) + '</strong></td>' +
+                    '<td colspan="3" style="text-align:center;color:#999;">详细子项见 JSON 文件</td>' +
+                    '<td class="' + scoreClass + '"><strong>' + (typeof score === 'number' ? score.toFixed(2) : score) + '</strong></td>' +
+                    '</tr>'
+                );
+            });
+        }
+
+        function renderCorrMatrix(corrMatrix, factorNames) {
+            var table = $('#eval-corr-table');
+            table.empty();
+
+            if (!corrMatrix || corrMatrix.length === 0 || !factorNames || factorNames.length === 0) {
+                table.html('<tr><td style="text-align:center;color:#999;">暂无相关性数据</td></tr>');
+                return;
+            }
+
+            // Build header row
+            var thead = '<thead><tr><th></th>';
+            factorNames.forEach(function(name) {
+                thead += '<th>' + escapeHtml(name) + '</th>';
+            });
+            thead += '</tr></thead>';
+
+            // Build body
+            var tbody = '<tbody>';
+            for (var i = 0; i < corrMatrix.length; i++) {
+                tbody += '<tr><td><strong>' + escapeHtml(factorNames[i] || '') + '</strong></td>';
+                var row = corrMatrix[i];
+                for (var j = 0; j < row.length; j++) {
+                    var val = row[j];
+                    var colorClass = '';
+                    if (i !== j) {
+                        colorClass = Math.abs(val) >= 0.7 ? 'negative' : (Math.abs(val) >= 0.5 ? '' : 'positive');
+                    }
+                    tbody += '<td class="' + colorClass + '">' + (typeof val === 'number' ? val.toFixed(3) : val) + '</td>';
+                }
+                tbody += '</tr>';
+            }
+            tbody += '</tbody>';
+
+            table.html(thead + tbody);
+        }
+
         // ==================== 持仓管理功能 ====================
 
         // 显示持仓管理子页面
@@ -1522,6 +1708,8 @@
                 loadStrategiesForPosition();
             } else if (subPageName === 'transactions') {
                 loadTransactions();
+            } else if (subPageName === 'risk') {
+                loadRiskAnalysis();
             }
         }
 
@@ -2184,9 +2372,35 @@
         }
 
         // 加载历史候选数据
-        function loadHistory(date) {
-            // TODO: 暂未实现，后续扩展
-            console.log('loadHistory called with date:', date);
+        function loadCandidateHistory() {
+            var dateVal = $('#candidate-history-date').val();
+            if (!dateVal) {
+                showError('请选择查询日期');
+                return;
+            }
+
+            var tableBody = $('#candidate-table-body');
+            tableBody.html('<tr><td colspan="12"><div class="loading">加载历史数据中</div></td></tr>');
+
+            $.get('/api/candidates/history?date=' + encodeURIComponent(dateVal), function(response) {
+                if (!response.success) {
+                    tableBody.html('<tr><td colspan="12"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
+                    return;
+                }
+
+                var results = response.results[dateVal];
+                if (!results || results.length === 0) {
+                    tableBody.html('<tr><td colspan="12" style="text-align:center;padding:40px;color:#999;">该日期暂无候选股数据</td></tr>');
+                    return;
+                }
+
+                $('#candidate-date').text(dateVal);
+                $('#candidate-summary').show();
+                $('#candidate-results-section').show();
+                renderCandidatesTable(results);
+            }).fail(function(xhr) {
+                tableBody.html('<tr><td colspan="12"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
+            });
         }
 
         // 格式化百分比值

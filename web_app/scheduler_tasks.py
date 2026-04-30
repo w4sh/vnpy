@@ -3,19 +3,30 @@
 实现：
 - 定时重算dirty策略（每5分钟）
 - 恢复卡死的recomputing状态（每10分钟）
+- 每日候选股筛选（交易日 15:30）
+- 日终前瞻因子增量更新（交易日 15:35，仅日频数据）
+
+季度因子更新因涉及全量A股逐只拉取（耗时 80+ 分钟），不适合日终定时执行，
+改为单独的 Monthly 任务或手动执行 `run_quarterly_factor_update()`。
 """
 
+from __future__ import annotations
+
+import logging
+import os
+import sys
+from datetime import date, datetime, timedelta
+from typing import Optional
+
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, timedelta
+from apscheduler.triggers.interval import IntervalTrigger
+
 from web_app.models import Strategy, get_db_session
 from web_app.recalc_service import RecalculationService, handle_recalc_failure
-import logging
 
 logger = logging.getLogger(__name__)
 
-# 创建scheduler
 scheduler = BackgroundScheduler()
 
 
@@ -92,21 +103,35 @@ def recover_stuck_strategies():
             session.close()
 
 
-def run_daily_candidate_screening():
-    """每日候选股筛选（交易日 15:30）"""
+def run_daily_candidate_screening(trade_date: str | None = None):
+    """每日候选股筛选（交易日 15:30）
+
+    参数:
+        trade_date: 筛选基准日期 str/date，默认今天
+    """
     try:
+        from datetime import date as dt_date
+
         from web_app.candidate.screening_engine import run_screening, save_results_to_db
-        from datetime import date
+
+        if trade_date is None:
+            target_date = dt_date.today()
+        elif isinstance(trade_date, str):
+            target_date = dt_date.fromisoformat(trade_date)
+        else:
+            target_date = trade_date
 
         logger.info("开始每日候选股筛选...")
         results, pool_size, elapsed = run_screening(mode="full")
-        save_results_to_db(results, date.today())
+        save_results_to_db(results, target_date)
         logger.info(
-            f"每日候选股筛选完成：股票池 {pool_size}，"
-            f"推荐 {len(results)} 只，耗时 {elapsed}s"
+            "每日候选股筛选完成: pool=%d, candidates=%d, elapsed=%.1fs",
+            pool_size,
+            len(results),
+            elapsed,
         )
     except Exception as e:
-        logger.error(f"每日候选股筛选失败: {e}")
+        logger.error("每日候选股筛选失败: %s", e)
 
 
 def init_scheduler():
@@ -147,33 +172,30 @@ def init_scheduler():
     logger.info("定时任务已启动")
 
 
-def run_daily_factor_update():
-    """日终增量更新前瞻因子（交易日 15:30 之后）"""
+def run_daily_factor_update(trade_date: str | None = None):
+    """日终增量更新前瞻因子（仅日频数据：daily_basic + 北向资金流向）
+
+    参数:
+        trade_date: 交易日 YYYYMMDD，默认今天
+    """
+    if trade_date is None:
+        trade_date = date.today().strftime("%Y%m%d")
+
+    sys.path.insert(0, str(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
     try:
-        from vnpy.alpha.factors.stock_pool import StockPoolManager
-        from datetime import date
-
-        # 从全量 StockPoolManager 获取股票池（替代手选 STOCK_POOL）
-        pool_manager = StockPoolManager()
-        full_pool = pool_manager.get_full_pool()
-        logger.info(f"全量股票池已就绪: {len(full_pool)} 只")
-
-        today = date.today().strftime("%Y%m%d")
-
         from vnpy.alpha.factors import FactorEngine
         from vnpy.alpha.factors.fundamental import (
-            FundamentalFetcher,
             FundamentalComputer,
+            FundamentalFetcher,
             FundamentalStorage,
         )
-        from vnpy.alpha.factors.flow import (
-            FlowFetcher,
-            FlowComputer,
-            FlowStorage,
-        )
-        from vnpy.alpha.factors.fundamental.fetcher import (
-            FundamentalFetcher as FF,
-        )
+        from vnpy.alpha.factors.flow import FlowComputer, FlowFetcher, FlowStorage
+        from vnpy.alpha.factors.stock_pool import StockPoolManager
+
+        pool_manager = StockPoolManager()
+        full_pool = pool_manager.get_full_pool()
+        logger.info("日频因子更新: pool=%d, trade_date=%s", len(full_pool), trade_date)
 
         engine = FactorEngine()
         engine.register(
@@ -191,24 +213,86 @@ def run_daily_factor_update():
             FlowStorage(),
         )
 
-        # 日频估值数据更新（一次全量拉取，无需分批）
-        daily_result = engine.run_daily(full_pool, today)
-        logger.info(f"日频因子更新完成: {daily_result}")
-
-        # 季频财务数据仅在财报旺季窗口更新
-        from datetime import datetime as dt
-
-        now = dt.now()
-        if FF.is_earnings_window(now):
-            logger.info("进入财报旺季窗口，执行季频因子分批更新")
-            engine.init_stock_pool()
-            quarterly_result = engine.run_quarterly_batch(full_pool, today)
-            logger.info(f"季频因子分批更新完成: {quarterly_result}")
-        else:
-            logger.info("非财报旺季窗口，跳过季频因子更新")
+        daily_result = engine.run_daily(full_pool, trade_date)
+        logger.info("日频因子更新完成: %s", daily_result)
 
     except Exception as e:
-        logger.error(f"因子更新任务失败: {e}")
+        logger.error("因子更新任务失败: %s", e)
+
+
+def run_quarterly_factor_update(
+    end_date: str | None = None,
+    batch_size: int = 50,
+):
+    """季频财务数据全量更新（耗时 80+ 分钟，建议独立执行）
+
+    仅应在以下情况触发：
+    - 每月/每季度手动执行
+    - 财报季结束后一次性增量补全
+    - 首次初始化时全量拉取
+
+    参数:
+        end_date: 报告截止日 YYYYMMDD，默认使用最近的财报截止期
+        batch_size: 每批股票数量
+    """
+    if end_date is None:
+        # 默认使用最近一个财报截止期
+        today = date.today()
+        # 财报截止期：4/30, 8/31, 10/31, 次年 4/30
+        if today.month >= 11 or today.month <= 4:
+            end_date = f"{today.year - 1}1231" if today.month <= 4 else "2026Q1"
+        elif today.month <= 8:
+            end_date = f"{today.year}0331"  # Q1
+        elif today.month <= 10:
+            end_date = f"{today.year}0630"  # Q2
+        else:
+            end_date = f"{today.year}0930"  # Q3
+
+        end_date = end_date.replace("Q", "") if "Q" in end_date else end_date
+
+    sys.path.insert(0, str(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+    try:
+        from vnpy.alpha.factors import FactorEngine
+        from vnpy.alpha.factors.fundamental import (
+            FundamentalComputer,
+            FundamentalFetcher,
+            FundamentalStorage,
+        )
+        from vnpy.alpha.factors.flow import FlowComputer, FlowFetcher, FlowStorage
+        from vnpy.alpha.factors.stock_pool import StockPoolManager
+
+        pool_manager = StockPoolManager()
+        full_pool = pool_manager.get_full_pool()
+        logger.info(
+            "季频因子更新: pool=%d, end_date=%s, batch=%d",
+            len(full_pool),
+            end_date,
+            batch_size,
+        )
+
+        engine = FactorEngine()
+        engine.register(
+            "fundamental",
+            "both",
+            FundamentalFetcher(),
+            FundamentalComputer(),
+            FundamentalStorage(),
+        )
+        engine.register(
+            "flow",
+            "daily",
+            FlowFetcher(),
+            FlowComputer(),
+            FlowStorage(),
+        )
+        engine.init_stock_pool()
+
+        quarterly_result = engine.run_quarterly_batch(full_pool, end_date, batch_size)
+        logger.info("季频因子更新完成: %s", quarterly_result)
+
+    except Exception as e:
+        logger.error("季频因子更新失败: %s", e)
 
 
 def shutdown_scheduler():

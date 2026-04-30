@@ -22,6 +22,7 @@ import numpy as np
 
 from web_app.models import CandidateStock, get_db_session
 from web_app.candidate.backtest import calculate_backtest_metrics, normalize_score
+from web_app.stock_names import get_stock_name
 
 logger = logging.getLogger(__name__)
 
@@ -735,7 +736,7 @@ def score_stock(data: dict) -> CandidateResult | None:
 
     return CandidateResult(
         symbol=symbol,
-        name="",
+        name=get_stock_name(symbol),
         score=0.0,
         rank=0,
         momentum_score=momentum,
