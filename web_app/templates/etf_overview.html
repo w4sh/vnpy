@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF 指数基金推荐 - vn.py</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='etf_overview.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ETF 指数基金推荐</h1>
+            <p>基于规模、流动性、费率、动量等多因子评分的每日 ETF 配置建议</p>
+            <div style="margin-top: 10px;">
+                <span id="data-date" style="color: #666; font-size: 0.9em;">数据日期：--</span>
+                <button class="btn" onclick="refreshData()" style="margin-left: 15px; padding: 8px 20px; font-size: 0.9em;">刷新数据</button>
+                <button class="btn btn-secondary" onclick="runScreening()" style="padding: 8px 20px; font-size: 0.9em;">立即筛选</button>
+            </div>
+        </div>
+
+        <div class="nav">
+            <button class="nav-btn" onclick="location.href='/'">策略回测</button>
+            <button class="nav-btn" onclick="location.href='/position_management'">持仓管理</button>
+            <button class="nav-btn active" onclick="location.href='/etf_overview'">指数推荐</button>
+        </div>
+
+        <!-- 统计概览 -->
+        <div class="stat-cards" id="stat-cards">
+            <div class="stat-card"><div class="label">ETF 总数</div><div class="value" id="total-etfs">--</div></div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #27ae60, #2ecc71);"><div class="label">强烈买入</div><div class="value" id="strong-buy-count">--</div></div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #00bcd4, #4dd0e1);"><div class="label">买入</div><div class="value" id="buy-count">--</div></div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f39c12, #f1c40f);"><div class="label">持有</div><div class="value" id="hold-count">--</div></div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #e74c3c, #c0392b);"><div class="label">卖出</div><div class="value" id="sell-count">--</div></div>
+        </div>
+
+        <div style="display: flex; gap: 20px;">
+            <!-- 主表格 -->
+            <div style="flex: 1; min-width: 0;">
+                <div class="section" style="margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="margin: 0;">ETF 评分排名</h3>
+                        <select id="top-n-select" onchange="changeTopN()" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <option value="30">Top 30</option>
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                            <option value="0">全部</option>
+                        </select>
+                    </div>
+
+                    <div id="loading" class="loading">加载中</div>
+                    <div id="error" class="error" style="display: none;"></div>
+
+                    <div style="overflow-x: auto;">
+                        <table class="etf-table" id="etf-table" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>操作建议</th>
+                                    <th>综合评分</th>
+                                    <th>流动性</th>
+                                    <th>规模</th>
+                                    <th>费率</th>
+                                    <th>动量</th>
+                                    <th>波动率</th>
+                                    <th>股息率</th>
+                                    <th>规模(亿)</th>
+                                    <th>费率%</th>
+                                </tr>
+                            </thead>
+                            <tbody id="etf-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧信息 -->
+            <div style="width: 280px; flex-shrink: 0;">
+                <div class="factor-weights" id="recommendation-summary">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">推荐摘要</h4>
+                    <div id="summary-content">
+                        <div style="font-size: 0.85em; color: #666;">请先加载数据...</div>
+                    </div>
+                </div>
+
+                <div class="factor-weights">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">因子权重配置</h4>
+                    <div id="factor-weights-content"></div>
+                </div>
+
+                <div class="factor-weights">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">评分规则</h4>
+                    <div style="font-size: 0.85em; line-height: 1.8;">
+                        <div><span class="badge-strong-buy">强烈买入</span> Top 5 且评分 ≥ 80</div>
+                        <div><span class="badge-buy">买入</span> 评分 ≥ 60</div>
+                        <div><span class="badge-hold">持有</span> 其余</div>
+                        <div><span class="badge-sell">卖出</span> 评分 &lt; 60</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ETF 因子权重配置
+        var FACTOR_WEIGHTS = {
+            liquidity: 0.20, size: 0.15, cost: 0.10,
+            tracking: 0.10, premium: 0.05, yield: 0.10,
+            momentum: 0.20, volatility: 0.10,
+        };
+        var FACTOR_LABELS = {
+            liquidity: "流动性", size: "规模", cost: "费率",
+            tracking: "跟踪误差", premium: "折溢价", yield: "股息率",
+            momentum: "动量", volatility: "波动率",
+        };
+        var allCandidates = [];
+        var currentTopN = 30;
+
+        function getActionBadge(type) {
+            var labels = {STRONG_BUY: "强烈买入", BUY: "买入", HOLD: "持有", SELL: "卖出"};
+            var cls = {STRONG_BUY: "badge-strong-buy", BUY: "badge-buy", HOLD: "badge-hold", SELL: "badge-sell"};
+            var span = document.createElement("span");
+            span.className = cls[type] || "badge-hold";
+            span.textContent = labels[type] || type;
+            return span.outerHTML;
+        }
+
+        function getActionFromScore(score, rank) {
+            if (rank <= 5 && score >= 80) return "STRONG_BUY";
+            if (score < 60) return "SELL";
+            if (rank <= 15) return "BUY";
+            return "HOLD";
+        }
+
+        function safeText(str) {
+            return str == null ? "" : String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function renderFactorWeights() {
+            var el = document.getElementById("factor-weights-content");
+            var html = "";
+            for (var key in FACTOR_WEIGHTS) {
+                if (!FACTOR_WEIGHTS.hasOwnProperty(key)) continue;
+                var pct = (FACTOR_WEIGHTS[key] * 100).toFixed(0);
+                html += '<div class="factor-weight-row"><span class="label">' + safeText(FACTOR_LABELS[key] || key) + '</span><div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div><span class="value">' + pct + '%</span></div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function renderTable(candidates) {
+            var tbody = document.getElementById("etf-tbody");
+            var table = document.getElementById("etf-table");
+            var loading = document.getElementById("loading");
+            var error = document.getElementById("error");
+
+            if (!candidates || candidates.length === 0) {
+                loading.style.display = "none";
+                error.style.display = "block";
+                error.textContent = "暂无 ETF 数据，请先运行筛选";
+                table.style.display = "none";
+                return;
+            }
+
+            var rows = "";
+            var displayList = currentTopN > 0 ? candidates.slice(0, currentTopN) : candidates;
+
+            for (var i = 0; i < displayList.length; i++) {
+                var c = displayList[i];
+                var rankClass = c.rank === 1 ? "rank-1" : c.rank === 2 ? "rank-2" : c.rank === 3 ? "rank-3" : "";
+                var action = getActionFromScore(c.combined_score, c.rank);
+                var fundSize = c.fund_size ? c.fund_size.toFixed(1) : "--";
+                var expenseRatio = c.expense_ratio ? c.expense_ratio.toFixed(3) : "--";
+
+                rows += "<tr><td class=\"rank-cell " + rankClass + "\">" + c.rank + "</td>"
+                    + "<td style=\"font-family:monospace;\">" + safeText(c.ts_code) + "</td>"
+                    + "<td>" + safeText(c.name) + "</td>"
+                    + "<td>" + getActionBadge(action) + "</td>"
+                    + "<td><strong>" + c.combined_score.toFixed(1) + "</strong></td>"
+                    + "<td>" + (c.liquidity_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + (c.size_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + (c.cost_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + (c.momentum_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + (c.volatility_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + (c.yield_score || 0).toFixed(1) + "</td>"
+                    + "<td>" + fundSize + "</td>"
+                    + "<td>" + expenseRatio + "</td></tr>";
+            }
+
+            tbody.innerHTML = rows;
+            table.style.display = "";
+            loading.style.display = "none";
+            error.style.display = "none";
+        }
+
+        function updateStats(candidates) {
+            var counts = {STRONG_BUY: 0, BUY: 0, HOLD: 0, SELL: 0};
+            for (var i = 0; i < candidates.length; i++) {
+                var a = getActionFromScore(candidates[i].combined_score, candidates[i].rank);
+                counts[a]++;
+            }
+            document.getElementById("total-etfs").textContent = candidates.length;
+            document.getElementById("strong-buy-count").textContent = counts.STRONG_BUY;
+            document.getElementById("buy-count").textContent = counts.BUY;
+            document.getElementById("hold-count").textContent = counts.HOLD;
+            document.getElementById("sell-count").textContent = counts.SELL;
+        }
+
+        function updateSummary(candidates, screeningDate) {
+            var el = document.getElementById("summary-content");
+            if (!candidates || candidates.length === 0) {
+                el.innerHTML = "<div style=\"font-size:0.85em;color:#666;\">暂无数据</div>";
+                return;
+            }
+            var sum = 0, maxScore = 0;
+            for (var i = 0; i < candidates.length; i++) {
+                sum += candidates[i].combined_score;
+                if (candidates[i].combined_score > maxScore) maxScore = candidates[i].combined_score;
+            }
+            var avg = sum / candidates.length;
+            var top1 = candidates[0];
+            el.innerHTML = "<div style=\"font-size:0.85em;line-height:1.8;\">"
+                + "<div>数据日期: " + safeText(screeningDate || "--") + "</div>"
+                + "<div>综合评分: 最高 " + maxScore.toFixed(1) + " | 平均 " + avg.toFixed(1) + "</div>"
+                + "<hr style=\"margin:8px 0;border:none;border-top:1px solid #e0e0e0;\">"
+                + "<div><strong>Top 1:</strong> " + safeText(top1.name) + " (" + top1.combined_score.toFixed(1) + "分)</div></div>";
+        }
+
+        function loadData() {
+            document.getElementById("loading").style.display = "block";
+            document.getElementById("error").style.display = "none";
+
+            fetch("/api/etf/candidates/latest")
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.candidates) {
+                        allCandidates = data.candidates;
+                        document.getElementById("data-date").textContent = "数据日期：" + (data.screening_date || "--");
+                        renderTable(allCandidates);
+                        updateStats(allCandidates);
+                        updateSummary(allCandidates, data.screening_date);
+                    } else {
+                        document.getElementById("loading").style.display = "none";
+                        document.getElementById("error").style.display = "block";
+                        document.getElementById("error").textContent = data.message || "加载失败";
+                    }
+                })
+                .catch(function(err) {
+                    document.getElementById("loading").style.display = "none";
+                    document.getElementById("error").style.display = "block";
+                    document.getElementById("error").textContent = "请求失败: " + err.message;
+                });
+        }
+
+        function changeTopN() {
+            currentTopN = parseInt(document.getElementById("top-n-select").value);
+            renderTable(allCandidates);
+        }
+
+        function refreshData() { loadData(); }
+
+        function runScreening() {
+            var btn = document.querySelector("button[onclick='runScreening()']");
+            btn.disabled = true;
+            btn.textContent = "筛选中...";
+            fetch("/api/etf/recommendations/generate", {method: "POST"})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        alert("ETF 筛选完成！共筛选 " + (data.screening ? data.screening.candidates_count : 0) + " 只，耗时 " + (data.screening ? data.screening.elapsed : 0) + "s");
+                        loadData();
+                    } else { alert("筛选失败: " + (data.error || "未知错误")); }
+                })
+                .catch(function(err) { alert("请求失败: " + err.message); })
+                .finally(function() { btn.disabled = false; btn.textContent = "立即筛选"; });
+        }
+
+        renderFactorWeights();
+        loadData();
+    </script>
+</body>
+</html>

@@ -46,9 +46,8 @@ from web_app.evaluation_api import eval_bp
 # 导入投资组合推荐API蓝图
 from web_app.recommendation_api import recommendation_bp
 
-# 导入定时任务
-from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
-import atexit
+# 导入ETF推荐API蓝图
+from web_app.etf_recommendation_api import etf_recommendation_bp
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # 支持中文
@@ -65,12 +64,8 @@ app.register_blueprint(factor_bp)
 app.register_blueprint(eval_bp)
 # 注册投资组合推荐蓝图
 app.register_blueprint(recommendation_bp)
-
-# 初始化定时任务
-init_scheduler()
-
-# 注册退出时关闭scheduler
-atexit.register(shutdown_scheduler)
+# 注册ETF推荐蓝图
+app.register_blueprint(etf_recommendation_bp)
 
 # 全局配置
 LAB_PATH = "/Users/w4sh8899/project/vnpy/lab_data"
@@ -590,6 +585,12 @@ def get_candidates_history():
 def position_management():
     """持仓管理页面"""
     return render_template("position_overview.html")
+
+
+@app.route("/etf_overview")
+def etf_overview():
+    """ETF 推荐面板"""
+    return render_template("etf_overview.html")
 
 
 if __name__ == "__main__":

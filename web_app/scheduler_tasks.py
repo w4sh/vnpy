@@ -22,6 +22,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+# 每日任务补跑窗口：重启后 4 小时内仍会执行
+_MISSED_GRACE_SECONDS = 14_400
+
 from web_app.models import Strategy, get_db_session
 from web_app.recalc_service import RecalculationService, handle_recalc_failure
 
@@ -194,6 +197,7 @@ def init_scheduler():
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=30),
         id="daily_candidate_screening",
         name="每日候选股筛选",
+        misfire_grace_time=_MISSED_GRACE_SECONDS,
         replace_existing=True,
     )
 
@@ -203,6 +207,7 @@ def init_scheduler():
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=35),
         id="daily_factor_update",
         name="日终前瞻因子更新",
+        misfire_grace_time=_MISSED_GRACE_SECONDS,
         replace_existing=True,
     )
 
@@ -212,6 +217,17 @@ def init_scheduler():
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=36),
         id="daily_portfolio_recommendation",
         name="每日投资组合推荐",
+        misfire_grace_time=_MISSED_GRACE_SECONDS,
+        replace_existing=True,
+    )
+
+    # 每日 ETF 筛选推荐：交易日 15:40
+    scheduler.add_job(
+        func=run_daily_etf,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=40),
+        id="daily_etf",
+        name="每日ETF筛选推荐",
+        misfire_grace_time=_MISSED_GRACE_SECONDS,
         replace_existing=True,
     )
 
@@ -396,6 +412,17 @@ def run_portfolio_recommendation(trade_date: str | None = None):
             session.close()
     except Exception as e:
         logger.error("投资组合推荐失败: %s", e)
+
+
+def run_daily_etf():
+    """每日 ETF 筛选推荐（交易日 15:40，个股任务全部完成后）"""
+    try:
+        from web_app.etf.etf_screening_engine import run_daily_etf_screening
+
+        run_daily_etf_screening()
+        logger.info("每日 ETF 筛选推荐完成")
+    except Exception as e:
+        logger.error("每日 ETF 筛选推荐失败: %s", e)
 
 
 def shutdown_scheduler():

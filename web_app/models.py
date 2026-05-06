@@ -256,6 +256,70 @@ class PortfolioRecommendation(Base):
         )
 
 
+class EtfCandidate(Base):
+    """ETF 候选表 - 存储每日 ETF 评分排名结果"""
+
+    __tablename__ = "etf_candidates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ts_code = Column(String(20), nullable=False, index=True)  # Tushare 格式 "510050.SH"
+    name = Column(String(50))  # ETF 名称
+    fund_size = Column(Numeric(12, 2))  # 基金规模（亿）
+    expense_ratio = Column(Numeric(6, 4))  # 综合费率（管理费+托管费 %）
+    avg_daily_volume = Column(Numeric(15, 2))  # 日均成交额
+    premium_discount = Column(Numeric(8, 4))  # 折溢价率（正=溢价）
+    tracking_error = Column(Numeric(8, 4))  # 跟踪误差
+    dividend_yield = Column(Numeric(8, 4))  # 股息率
+    # 因子评分 (0-100)
+    liquidity_score = Column(Numeric(8, 2))
+    size_score = Column(Numeric(8, 2))
+    cost_score = Column(Numeric(8, 2))
+    tracking_score = Column(Numeric(8, 2))
+    premium_score = Column(Numeric(8, 2))
+    yield_score = Column(Numeric(8, 2))
+    momentum_score = Column(Numeric(8, 2))
+    volatility_score = Column(Numeric(8, 2))
+    technical_score = Column(Numeric(8, 2))  # 技术因子综合分
+    performance_score = Column(Numeric(8, 2))  # 回测绩效综合分
+    combined_score = Column(Numeric(8, 2))  # 综合评分
+    rank = Column(Integer, nullable=False)  # 当日排名
+    screening_date = Column(Date, nullable=False, index=True)  # 筛选日期
+    current_price = Column(Numeric(10, 2))  # 当日收盘价
+    total_return = Column(Numeric(8, 4))  # 回测总收益率
+    max_drawdown = Column(Numeric(8, 4))  # 回测最大回撤
+    sharpe_ratio = Column(Numeric(6, 4))  # 夏普比率
+    annual_volatility = Column(Numeric(8, 4))  # 年化波动率
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self) -> str:
+        return f"<EtfCandidate(id={self.id}, ts_code={self.ts_code}, rank={self.rank}, date={self.screening_date})>"
+
+
+class EtfPortfolioRecommendation(Base):
+    """ETF 投资组合推荐表 - 每日 ETF 评分排名生成的配置建议"""
+
+    __tablename__ = "etf_portfolio_recommendations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ts_code = Column(String(20), nullable=False, index=True)
+    name = Column(String(50))
+    recommendation_type = Column(String(20), nullable=False)
+    combined_score = Column(Numeric(8, 2))
+    current_price = Column(Numeric(10, 2))
+    target_position_pct = Column(Numeric(8, 4))
+    target_amount = Column(Numeric(15, 2))
+    suggested_quantity = Column(Integer)
+    recommendation_date = Column(Date, nullable=False, index=True)
+    reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self) -> str:
+        return (
+            f"<EtfPortfolioRecommendation(id={self.id}, ts_code={self.ts_code}, "
+            f"type={self.recommendation_type}, date={self.recommendation_date})>"
+        )
+
+
 # 数据库初始化和辅助函数
 def init_database(db_url: str = "sqlite:///position_management.db") -> Session:
     """初始化数据库"""

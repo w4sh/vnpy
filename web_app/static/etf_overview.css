@@ -1,0 +1,172 @@
+/* ETF 推荐面板专用样式 */
+
+/* 概览卡片 */
+.stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    color: white;
+}
+
+.stat-card .value {
+    font-size: 1.8em;
+    font-weight: bold;
+    margin: 8px 0;
+}
+
+.stat-card .label {
+    font-size: 0.85em;
+    opacity: 0.9;
+}
+
+/* 排名表格 */
+.etf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.etf-table th {
+    background: #f8f9fa;
+    color: #667eea;
+    font-weight: bold;
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 2px solid #667eea;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.etf-table th:hover {
+    background: #eef0ff;
+}
+
+.etf-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e0e0e0;
+    vertical-align: middle;
+}
+
+.etf-table tr:hover {
+    background: #f8f9fa;
+}
+
+.etf-table .rank-cell {
+    font-weight: bold;
+    color: #667eea;
+    text-align: center;
+}
+
+.etf-table .rank-1 {
+    color: #f39c12;
+    font-size: 1.2em;
+}
+.etf-table .rank-2 {
+    color: #95a5a6;
+    font-size: 1.1em;
+}
+.etf-table .rank-3 {
+    color: #cd7f32;
+}
+
+/* 操作建议徽标（复用持仓管理样式） */
+.badge-strong-buy {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: bold;
+    color: white;
+    background: #27ae60;
+}
+
+.badge-buy {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: bold;
+    color: white;
+    background: #00bcd4;
+}
+
+.badge-hold {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: bold;
+    color: white;
+    background: #f39c12;
+}
+
+.badge-sell {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: bold;
+    color: white;
+    background: #e74c3c;
+}
+
+/* 评分条 */
+.score-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 4px;
+    min-width: 2px;
+}
+
+/* 因子权重面板 */
+.factor-weights {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.factor-weight-row {
+    display: flex;
+    align-items: center;
+    margin: 6px 0;
+}
+
+.factor-weight-row .label {
+    width: 90px;
+    font-size: 0.85em;
+    color: #555;
+}
+
+.factor-weight-row .bar-bg {
+    flex: 1;
+    height: 12px;
+    background: #e0e0e0;
+    border-radius: 6px;
+    margin: 0 10px;
+    overflow: hidden;
+}
+
+.factor-weight-row .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 6px;
+    transition: width 0.3s;
+}
+
+.factor-weight-row .value {
+    width: 40px;
+    text-align: right;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #667eea;
+}
