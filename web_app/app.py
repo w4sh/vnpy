@@ -444,45 +444,49 @@ def get_latest_candidates():
     try:
         session = get_db_session()
 
-        # 获取最新筛选日期的 top 20 结果
-        latest = (
-            session.query(CandidateStock)
-            .order_by(CandidateStock.screening_date.desc(), CandidateStock.rank)
-            .limit(20)
-            .all()
+        latest_date_row = (
+            session.query(CandidateStock.screening_date)
+            .order_by(CandidateStock.screening_date.desc())
+            .first()
         )
 
-        if not latest:
+        if not latest_date_row:
             return jsonify(
                 {
                     "success": True,
                     "screening_date": None,
-                    "stock_pool_size": 0,
-                    "elapsed_seconds": 0,
-                    "results": [],
+                    "count": 0,
+                    "candidates": [],
                     "message": "暂无候选股推荐数据，请在交易日收盘后运行筛选",
                 }
             )
 
-        screening_date = latest[0].screening_date.strftime("%Y-%m-%d")
+        screening_date = latest_date_row[0].strftime("%Y-%m-%d")
 
-        # 统计该日候选股总数作为股票池规模参考
-        from sqlalchemy import func as sa_func
+        latest = (
+            session.query(CandidateStock)
+            .filter(CandidateStock.screening_date == latest_date_row[0])
+            .order_by(CandidateStock.rank)
+            .all()
+        )
 
-        pool_count = (
-            session.query(sa_func.count(CandidateStock.id))
-            .filter(CandidateStock.screening_date == latest[0].screening_date)
-            .scalar()
-        ) or 0
-
-        results = []
+        candidates = []
         for c in latest:
-            results.append(
+            candidates.append(
                 {
                     "rank": c.rank,
                     "symbol": c.symbol,
                     "name": c.name or get_stock_name(c.symbol),
                     "score": float(c.score) if c.score else 0,
+                    "technical_score": float(c.technical_score)
+                    if c.technical_score
+                    else 0,
+                    "performance_score": float(c.performance_score)
+                    if c.performance_score
+                    else 0,
+                    "combined_score": float(c.combined_score)
+                    if c.combined_score
+                    else 0,
                     "momentum_score": float(c.momentum_score)
                     if c.momentum_score
                     else 0,
@@ -493,7 +497,6 @@ def get_latest_candidates():
                     else 0,
                     "current_price": float(c.current_price) if c.current_price else 0,
                     "total_return": float(c.total_return) if c.total_return else 0,
-                    "annual_return": float(c.annual_return) if c.annual_return else 0,
                     "max_drawdown": float(c.max_drawdown) if c.max_drawdown else 0,
                     "sharpe_ratio": float(c.sharpe_ratio) if c.sharpe_ratio else 0,
                 }
@@ -503,9 +506,8 @@ def get_latest_candidates():
             {
                 "success": True,
                 "screening_date": screening_date,
-                "stock_pool_size": pool_count,  # 该日期所有候选股数量
-                "elapsed_seconds": 0,  # 历史记录中无耗时数据
-                "results": results,
+                "count": len(candidates),
+                "candidates": candidates,
             }
         )
 
@@ -546,6 +548,15 @@ def get_candidates_history():
                     "symbol": c.symbol,
                     "name": c.name or get_stock_name(c.symbol),
                     "score": float(c.score) if c.score else 0,
+                    "technical_score": float(c.technical_score)
+                    if c.technical_score
+                    else 0,
+                    "performance_score": float(c.performance_score)
+                    if c.performance_score
+                    else 0,
+                    "combined_score": float(c.combined_score)
+                    if c.combined_score
+                    else 0,
                     "momentum_score": float(c.momentum_score)
                     if c.momentum_score
                     else 0,
@@ -556,7 +567,6 @@ def get_candidates_history():
                     else 0,
                     "current_price": float(c.current_price) if c.current_price else 0,
                     "total_return": float(c.total_return) if c.total_return else 0,
-                    "annual_return": float(c.annual_return) if c.annual_return else 0,
                     "max_drawdown": float(c.max_drawdown) if c.max_drawdown else 0,
                     "sharpe_ratio": float(c.sharpe_ratio) if c.sharpe_ratio else 0,
                 }

@@ -66,7 +66,7 @@ def get_stock_pool():
     except ImportError:
         # fallback: 尝试从候选股模块获取
         try:
-            from web_app.candidate.screening_engine import STOCK_POOL
+            from web_app.candidate.engine import STOCK_POOL
 
             return STOCK_POOL
         except ImportError:

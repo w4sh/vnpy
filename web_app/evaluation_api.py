@@ -6,7 +6,6 @@
 """
 
 import json
-import os
 import logging
 from pathlib import Path
 
@@ -38,7 +37,7 @@ def latest_evaluation():
         )
 
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
 
         ic_results = data.get("ic_results", {})

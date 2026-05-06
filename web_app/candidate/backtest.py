@@ -1,7 +1,4 @@
-"""Historical backtest performance metrics for a single stock.
-
-Vectorized calculations using only numpy, no pandas/scipy required.
-"""
+"""回测绩效指标计算 + 截面百分位归一化"""
 
 import numpy as np
 
@@ -10,44 +7,33 @@ def calculate_backtest_metrics(
     prices: np.ndarray,
     dates: np.ndarray,
 ) -> dict:
-    """Compute core backtest metrics from a series of daily close prices.
+    """Compute core backtest metrics from daily close prices.
 
     Parameters
     ----------
     prices : np.ndarray
         1-D array of daily close prices, most recent last.
     dates : np.ndarray
-        1-D array of corresponding dates (unused in calculations but
-        accepted for caller convenience).
+        1-D array of corresponding dates.
 
     Returns
     -------
     dict
-        Keys: total_return, annual_return, max_drawdown, sharpe_ratio.
+        Keys: total_return, max_drawdown, sharpe_ratio.
     """
     if len(prices) < 2:
         return {
             "total_return": 0.0,
-            "annual_return": 0.0,
             "max_drawdown": 0.0,
             "sharpe_ratio": 0.0,
         }
 
-    # Total return
     total_return = float(prices[-1] / prices[0] - 1)
 
-    # Annualized return
-    n_days = len(prices)
-    annual_return = (1 + total_return) ** (252 / n_days) - 1
-    # Clamp to reasonable range [-1, 10] (i.e. -100% to +1000%)
-    annual_return = float(np.clip(annual_return, -1.0, 10.0))
-
-    # Max drawdown (always negative, e.g. -0.15 means 15% drawdown)
     cumulative_max = np.maximum.accumulate(prices)
     drawdowns = (prices - cumulative_max) / cumulative_max
     max_drawdown = float(np.min(drawdowns))
 
-    # Annualized Sharpe ratio (0 risk-free rate)
     daily_returns = np.diff(prices) / prices[:-1]
     daily_mean = np.mean(daily_returns)
     daily_std = np.std(daily_returns, ddof=1)
@@ -58,29 +44,40 @@ def calculate_backtest_metrics(
 
     return {
         "total_return": round(total_return, 6),
-        "annual_return": round(annual_return, 6),
         "max_drawdown": round(max_drawdown, 6),
         "sharpe_ratio": round(sharpe_ratio, 6),
     }
 
 
 def normalize_score(values: np.ndarray) -> np.ndarray:
-    """Min-max normalize an array to a 0-100 scale.
-
-    If all values are identical, returns an array of zeros.
-
-    Parameters
-    ----------
-    values : np.ndarray
-        Raw numeric values.
-
-    Returns
-    -------
-    np.ndarray
-        Normalized values in [0, 100].
-    """
+    """Min-max normalize to [0, 100] (legacy, will be replaced by cross_sectional_rank)."""
     v_min = np.min(values)
     v_max = np.max(values)
     if v_max == v_min:
         return np.zeros_like(values, dtype=float)
     return (values - v_min) / (v_max - v_min) * 100.0
+
+
+def cross_sectional_rank(
+    values: np.ndarray, higher_is_better: bool = True
+) -> np.ndarray:
+    """截面百分位排名 → [0, 100]
+
+    当 higher_is_better=True:   值越大 → 分数越高
+    当 higher_is_better=False:  值越小 → 分数越高（用于回撤等反向指标）
+
+    参考: Fama-French (1992) portfolio sort, Barra 风险模型标准化层
+    """
+    if len(values) < 2:
+        return np.zeros_like(values, dtype=float)
+
+    if np.std(values) < 1e-12:
+        return np.full_like(values, 50.0, dtype=float)
+
+    if higher_is_better:
+        ranks = np.argsort(np.argsort(values))
+    else:
+        ranks = np.argsort(np.argsort(-values))
+
+    n = len(values)
+    return ranks.astype(float) / (n - 1) * 100.0

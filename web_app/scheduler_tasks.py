@@ -15,8 +15,8 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import traceback
 from datetime import date, datetime, timedelta
-from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -28,6 +28,7 @@ from web_app.recalc_service import RecalculationService, handle_recalc_failure
 logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler()
+_scheduler_initialized = False
 
 
 def recalc_dirty_strategies():
@@ -112,7 +113,9 @@ def run_daily_candidate_screening(trade_date: str | None = None):
     try:
         from datetime import date as dt_date
 
-        from web_app.candidate.screening_engine import run_screening, save_results_to_db
+        from web_app.candidate.screening_engine import run_screening
+        from web_app.candidate.scoring import save_results_to_db
+        from web_app.candidate.candidate_types import CandidateResult
 
         if trade_date is None:
             target_date = dt_date.today()
@@ -123,9 +126,29 @@ def run_daily_candidate_screening(trade_date: str | None = None):
 
         logger.info("开始每日候选股筛选...")
         results, pool_size, elapsed = run_screening(mode="full")
-        save_results_to_db(results, target_date)
+
+        candidates = [
+            CandidateResult(
+                symbol=r["symbol"],
+                name=r["name"],
+                momentum_score=r["momentum_score"],
+                trend_score=r["trend_score"],
+                volume_score=r["volume_score"],
+                volatility_score=r["volatility_score"],
+                technical_score=r["technical_score"],
+                performance_score=r.get("performance_score", 0.0),
+                combined_score=r["combined_score"],
+                rank=r["rank"],
+                current_price=r["current_price"],
+                total_return=r["total_return"],
+                max_drawdown=r["max_drawdown"],
+                sharpe_ratio=r["sharpe_ratio"],
+            )
+            for r in results
+        ]
+        save_results_to_db(candidates, target_date)
         logger.info(
-            "每日候选股筛选完成: pool=%d, candidates=%d, elapsed=%.1fs",
+            "每日候选股筛选完成: pool=%d, top=%d, elapsed=%.1fs",
             pool_size,
             len(results),
             elapsed,
@@ -135,13 +158,25 @@ def run_daily_candidate_screening(trade_date: str | None = None):
 
 
 def init_scheduler():
-    """初始化定时任务"""
+    """初始化定时任务（幂等，可安全多次调用）"""
+    global _scheduler_initialized
+
+    if _scheduler_initialized:
+        logger.warning(
+            "init_scheduler 被重复调用，跳过（调用堆栈：%s）",
+            "".join(traceback.format_stack()[-6:-1]),
+        )
+        return
+
+    _scheduler_initialized = True
+
     # 重算dirty策略：每5分钟执行一次
     scheduler.add_job(
         func=recalc_dirty_strategies,
         trigger=IntervalTrigger(minutes=5),
         id="recalc_dirty_strategies",
         name="重算dirty策略",
+        replace_existing=True,
     )
 
     # 恢复卡死状态：每10分钟执行一次
@@ -150,6 +185,7 @@ def init_scheduler():
         trigger=IntervalTrigger(minutes=10),
         id="recover_stuck_strategies",
         name="恢复卡死策略",
+        replace_existing=True,
     )
 
     # 每日候选股筛选：交易日 15:30
@@ -158,6 +194,7 @@ def init_scheduler():
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=30),
         id="daily_candidate_screening",
         name="每日候选股筛选",
+        replace_existing=True,
     )
 
     # 日终前瞻因子更新：交易日 15:35
@@ -166,10 +203,14 @@ def init_scheduler():
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=35),
         id="daily_factor_update",
         name="日终前瞻因子更新",
+        replace_existing=True,
     )
 
-    scheduler.start()
-    logger.info("定时任务已启动")
+    if not scheduler.running:
+        scheduler.start()
+        logger.info("定时任务已启动")
+    else:
+        logger.info("定时任务已在运行中")
 
 
 def run_daily_factor_update(trade_date: str | None = None):
@@ -297,5 +338,15 @@ def run_quarterly_factor_update(
 
 def shutdown_scheduler():
     """关闭定时任务"""
-    scheduler.shutdown()
-    logger.info("定时任务已关闭")
+    global _scheduler_initialized
+
+    if not _scheduler_initialized:
+        logger.warning("Scheduler 未初始化，跳过关闭")
+        return
+
+    if scheduler.running:
+        scheduler.shutdown()
+        _scheduler_initialized = False
+        logger.info("定时任务已关闭")
+    else:
+        logger.info("定时任务未在运行中")

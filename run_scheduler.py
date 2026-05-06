@@ -32,14 +32,38 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     handlers=[
         logging.FileHandler(str(LOG_FILE), encoding="utf-8"),
-        logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger("Scheduler")
 
 
+def check_already_running():
+    """检查是否已有 scheduler 实例在运行"""
+    if not PID_FILE.exists():
+        return False
+
+    pid_str = PID_FILE.read_text().strip()
+    if not pid_str:
+        return False
+
+    try:
+        pid = int(pid_str)
+        os.kill(pid, 0)  # 信号 0 只检测进程存在性
+        return True
+    except (ValueError, ProcessLookupError, PermissionError):
+        return False
+
+
 def run_foreground():
     """前台运行 scheduler"""
+    if check_already_running():
+        existing_pid = PID_FILE.read_text().strip()
+        logger.error("Scheduler 已在运行 (PID=%s)，请先停止旧进程再启动", existing_pid)
+        print(f"错误：Scheduler 已在运行 (PID={existing_pid})")
+        print(f"运行 '{sys.argv[0]} --status' 查看状态")
+        print(f"运行 '{sys.argv[0]} --stop' 停止旧进程")
+        sys.exit(1)
+
     from web_app.scheduler_tasks import init_scheduler
     from web_app.scheduler_tasks import scheduler
 
@@ -100,14 +124,14 @@ def write_launchd_plist():
     print(f"launchd plist 已写入: {plist_path}")
     print("运行以下命令加载：")
     print(f"  launchctl load {plist_path}")
-    print(f"  launchctl start com.vnpy.scheduler")
+    print("  launchctl start com.vnpy.scheduler")
 
 
 def check_status():
     """检查运行状态"""
     if PID_FILE.exists():
         pid = PID_FILE.read_text().strip()
-        if os.path.exists(f"/proc/{pid}") or (os.path.exists(f"/proc") == False):
+        if os.path.exists(f"/proc/{pid}") or not os.path.exists("/proc"):
             # 尝试通过 kill 检查进程是否存在
             try:
                 os.kill(int(pid), 0)

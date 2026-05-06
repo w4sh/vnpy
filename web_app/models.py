@@ -6,6 +6,7 @@
 
 from datetime import datetime
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -200,18 +201,25 @@ class CandidateStock(Base):
     __tablename__ = "candidate_stocks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(String(20), nullable=False, index=True)  # 股票代码 (000001.SZSE)
+    symbol = Column(String(20), nullable=False, index=True)  # 股票代码
     name = Column(String(50))  # 股票名称
-    score = Column(Numeric(8, 2), nullable=False)  # 综合评分 (0-100)
+    score = Column(Numeric(8, 2), nullable=False)  # 过渡期：= combined_score
+    technical_score = Column(Numeric(8, 2))  # 技术因子综合分 (0-100)
+    performance_score = Column(Numeric(8, 2))  # 回测绩效综合分 (0-100)
+    combined_score = Column(Numeric(8, 2))  # 综合评分 = tech×0.5 + perf×0.5
     rank = Column(Integer, nullable=False)  # 当日排名
     screening_date = Column(Date, nullable=False, index=True)  # 筛选日期
     momentum_score = Column(Numeric(8, 2))  # 动量因子分
     trend_score = Column(Numeric(8, 2))  # 趋势因子分
     volume_score = Column(Numeric(8, 2))  # 量价因子分
     volatility_score = Column(Numeric(8, 2))  # 波动率因子分
+    northbound_stock_score = Column(Numeric(8, 2))  # 北向存量因子分
+    northbound_flow_score = Column(Numeric(8, 2))  # 北向增量因子分
+    raw_northbound_stock = Column(Numeric(10, 4))  # 原始北向存量值
+    raw_northbound_flow = Column(Numeric(10, 4))  # 原始北向增量值
+    has_northbound = Column(Boolean, default=False)  # 是否北向标的
     current_price = Column(Numeric(10, 2))  # 当日收盘价
     total_return = Column(Numeric(8, 4))  # 回测总收益率
-    annual_return = Column(Numeric(8, 4))  # 回测年化收益
     max_drawdown = Column(Numeric(8, 4))  # 回测最大回撤
     sharpe_ratio = Column(Numeric(6, 4))  # 回测夏普比率
     created_at = Column(DateTime, default=datetime.now)

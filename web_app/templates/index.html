@@ -823,15 +823,20 @@
                     </div>
                 </div>
 
+                <!-- Tab 切换 -->
                 <div class="section" id="candidate-results-section" style="display: none;">
-                    <table class="results-table">
+
+                    <!-- 候选股推荐表格 -->
+                    <table class="results-table" id="candidates-table">
                         <thead>
                             <tr>
                                 <th>排名</th>
                                 <th>股票代码</th>
                                 <th>名称</th>
                                 <th>收盘价</th>
-                                <th>综合评分</th>
+                                <th>技术分</th>
+                                <th>绩效分</th>
+                                <th>综合分</th>
                                 <th>动量</th>
                                 <th>趋势</th>
                                 <th>量价</th>
@@ -841,7 +846,7 @@
                                 <th>夏普</th>
                             </tr>
                         </thead>
-                        <tbody id="candidate-table-body"></tbody>
+                        <tbody id="candidates-table-body"></tbody>
                     </table>
                 </div>
 
@@ -2243,44 +2248,80 @@
 
         // ==================== 股票候选功能 ====================
 
-        // 加载候选股票数据
+        // Tab 切换：北向推荐 / 全市场推荐
+        function switchCandidateTab(tab) {
+            const isNorthbound = tab === 'northbound';
+            $('#northbound-table').toggle(isNorthbound);
+            $('#all-market-table').toggle(!isNorthbound);
+            $('#tab-northbound').toggleClass('btn-primary', isNorthbound).toggleClass('btn-secondary', !isNorthbound);
+            $('#tab-all-market').toggleClass('btn-primary', !isNorthbound).toggleClass('btn-secondary', isNorthbound);
+        }
+
+        // 加载候选股票数据（双榜单）
         function loadCandidates() {
             const summaryDiv = $('#candidate-summary');
             const resultsSection = $('#candidate-results-section');
-            const tableBody = $('#candidate-table-body');
 
-            tableBody.html('<tr><td colspan="12"><div class="loading">加载候选数据中</div></td></tr>');
+            // 两个表格都显示加载状态
+            $('#northbound-table-body').html('<tr><td colspan="16"><div class="loading">加载中</div></td></tr>');
+            $('#all-market-table-body').html('<tr><td colspan="14"><div class="loading">加载中</div></td></tr>');
 
             $.get('/api/candidates/latest', function(response) {
                 if (!response.success) {
-                    tableBody.html(`<tr><td colspan="12"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
+                    $('#northbound-table-body').html(`<tr><td colspan="16"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
+                    $('#all-market-table-body').html(`<tr><td colspan="14"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
                     summaryDiv.hide();
                     resultsSection.hide();
                     return;
                 }
 
+                if (!response.screening_date) {
+                    // 无数据
+                    summaryDiv.show();
+                    $('#candidate-date').text('-');
+                    $('#candidate-pool-size').text('0 / 0 只');
+                    $('#candidate-elapsed').text('-');
+                    resultsSection.show();
+                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">暂无候选股数据，请在交易日收盘后运行筛选</td></tr>');
+                    $('#all-market-table-body').html('<tr><td colspan="14" style="text-align:center;padding:40px;color:#999;">暂无候选股数据</td></tr>');
+                    switchCandidateTab('northbound');
+                    return;
+                }
+
                 summaryDiv.show();
                 $('#candidate-date').text(response.screening_date);
-                $('#candidate-pool-size').text(response.stock_pool_size + ' 只');
-                $('#candidate-elapsed').text(response.elapsed_seconds.toFixed(1) + ' 秒');
+                $('#candidate-pool-size').text((response.northbound_count || 0) + ' / ' + (response.all_market_count || 0) + ' 只');
+                $('#candidate-elapsed').text(response.elapsed_seconds ? response.elapsed_seconds.toFixed(1) + ' 秒' : '-');
 
-                if (response.results && response.results.length > 0) {
-                    resultsSection.show();
-                    renderCandidatesTable(response.results);
+                resultsSection.show();
+
+                // 渲染北向榜单
+                if (response.northbound && response.northbound.length > 0) {
+                    renderCandidatesTable(response.northbound, 'northbound');
                 } else {
-                    resultsSection.show();
-                    tableBody.html('<tr><td colspan="12" style="text-align: center; padding: 40px; color: #999;">暂无候选股票数据</td></tr>');
+                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">暂无北向标的候选数据</td></tr>');
                 }
+
+                // 渲染全市场榜单
+                if (response.all_market && response.all_market.length > 0) {
+                    renderCandidatesTable(response.all_market, 'all_market');
+                } else {
+                    $('#all-market-table-body').html('<tr><td colspan="14" style="text-align:center;padding:40px;color:#999;">暂无全市场候选数据</td></tr>');
+                }
+
+                // 默认显示北向Tab
+                switchCandidateTab('northbound');
             }).fail(function(xhr) {
-                tableBody.html(`<tr><td colspan="12"><div class="error">请求失败: ${xhr.statusText || '网络错误'}</div></td></tr>`);
+                $('#northbound-table-body').html(`<tr><td colspan="16"><div class="error">请求失败: ${xhr.statusText || '网络错误'}</div></td></tr>`);
                 summaryDiv.hide();
                 resultsSection.hide();
             });
         }
 
-        // 渲染候选股票表格
-        function renderCandidatesTable(results) {
-            const tableBody = $('#candidate-table-body');
+        // 渲染候选股票表格（支持双模式）
+        function renderCandidatesTable(results, mode) {
+            const isNorthbound = mode === 'northbound';
+            const tableBody = isNorthbound ? $('#northbound-table-body') : $('#all-market-table-body');
             let html = '';
 
             results.forEach(function(item) {
@@ -2288,29 +2329,37 @@
                 const ddClass = item.max_drawdown <= 0 ? 'negative' : 'positive';
                 const sharpeClass = item.sharpe_ratio >= 0 ? 'positive' : 'negative';
 
-                html += `
-                    <tr style="cursor: pointer;" onclick="showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score})">
-                        <td>${item.rank}</td>
-                        <td><strong>${escapeHtml(item.symbol)}</strong></td>
-                        <td>${escapeHtml(item.name)}</td>
-                        <td>${item.current_price != null ? '¥' + item.current_price.toFixed(2) : '-'}</td>
-                        <td><strong>${item.score.toFixed(1)}</strong></td>
-                        <td>${item.momentum_score.toFixed(1)}</td>
-                        <td>${item.trend_score.toFixed(1)}</td>
-                        <td>${item.volume_score.toFixed(1)}</td>
-                        <td>${item.volatility_score.toFixed(1)}</td>
-                        <td class="${returnClass}">${formatPercent(item.total_return)}</td>
-                        <td class="${ddClass}">${formatPercent(item.max_drawdown)}</td>
-                        <td class="${sharpeClass}">${item.sharpe_ratio != null ? item.sharpe_ratio.toFixed(2) : '-'}</td>
-                    </tr>
-                `;
+                const clickArgs = isNorthbound
+                    ? `showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score}, ${item.northbound_stock_score || 0}, ${item.northbound_flow_score || 0}, ${item.technical_score || 0}, ${item.performance_score || 0}, ${item.combined_score || 0}, true)`
+                    : `showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score}, 0, 0, ${item.technical_score || 0}, ${item.performance_score || 0}, ${item.combined_score || 0}, false)`;
+
+                html += '<tr style="cursor: pointer;" onclick="' + clickArgs + '">';
+                html += `<td>${item.rank}</td>`;
+                html += `<td><strong>${escapeHtml(item.symbol)}</strong></td>`;
+                html += `<td>${escapeHtml(item.name)}</td>`;
+                html += `<td>${item.current_price != null ? '¥' + item.current_price.toFixed(2) : '-'}</td>`;
+                html += `<td>${(item.technical_score || 0).toFixed(1)}</td>`;
+                html += `<td>${(item.performance_score || 0).toFixed(1)}</td>`;
+                html += `<td><strong>${(item.combined_score || 0).toFixed(1)}</strong></td>`;
+                html += `<td>${item.momentum_score.toFixed(1)}</td>`;
+                html += `<td>${item.trend_score.toFixed(1)}</td>`;
+                html += `<td>${item.volume_score.toFixed(1)}</td>`;
+                html += `<td>${item.volatility_score.toFixed(1)}</td>`;
+                if (isNorthbound) {
+                    html += `<td>${(item.northbound_stock_score || 0).toFixed(1)}</td>`;
+                    html += `<td>${(item.northbound_flow_score || 0).toFixed(1)}</td>`;
+                }
+                html += `<td class="${returnClass}">${formatPercent(item.total_return)}</td>`;
+                html += `<td class="${ddClass}">${formatPercent(item.max_drawdown)}</td>`;
+                html += `<td class="${sharpeClass}">${item.sharpe_ratio != null ? item.sharpe_ratio.toFixed(2) : '-'}</td>`;
+                html += '</tr>';
             });
 
             tableBody.html(html);
         }
 
-        // 显示候选股票详情面板（雷达图）
-        function showCandidateDetail(rank, symbol, name, momentum, trend, volume, volatility) {
+        // 显示候选股票详情面板（雷达图，含北向因子）
+        function showCandidateDetail(rank, symbol, name, momentum, trend, volume, volatility, nbStock, nbFlow, technicalScore, performanceScore, combinedScore, hasNorthbound) {
             const panel = $('#candidate-detail-panel');
 
             // 切换显示/隐藏
@@ -2322,8 +2371,11 @@
             panel.show();
             panel.data('current-rank', rank);
 
-            // 更新标题
-            panel.find('h4').text(`${rank}. ${symbol} - ${name} 因子得分详情`);
+            // 更新标题和分数
+            const techStr = (technicalScore || 0).toFixed(1);
+            const perfStr = (performanceScore || 0).toFixed(1);
+            const combStr = (combinedScore || 0).toFixed(1);
+            panel.find('h4').html(`${rank}. ${symbol} - ${name} 因子得分详情 <small style="color:#666;margin-left:10px;">技术 ${techStr} | 绩效 ${perfStr} | <strong>综合 ${combStr}</strong></small>`);
 
             // 销毁旧图表
             const canvas = document.getElementById('candidate-radar-chart');
@@ -2332,16 +2384,26 @@
                 candidateRadarChart = null;
             }
 
+            // 根据是否有北向数据决定雷达图标签
+            let labels, data;
+            if (hasNorthbound) {
+                labels = ['动量', '趋势', '量价', '波动', '北向存量', '北向增量'];
+                data = [momentum, trend, volume, volatility, nbStock, nbFlow];
+            } else {
+                labels = ['动量', '趋势', '量价', '波动'];
+                data = [momentum, trend, volume, volatility];
+            }
+
             // 创建雷达图
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 candidateRadarChart = new Chart(ctx, {
                     type: 'radar',
                     data: {
-                        labels: ['动量', '趋势', '量价', '波动'],
+                        labels: labels,
                         datasets: [{
                             label: symbol,
-                            data: [momentum, trend, volume, volatility],
+                            data: data,
                             backgroundColor: 'rgba(102, 126, 234, 0.2)',
                             borderColor: 'rgba(102, 126, 234, 1)',
                             borderWidth: 2,
@@ -2371,7 +2433,7 @@
             }
         }
 
-        // 加载历史候选数据
+        // 加载历史候选数据（双榜单）
         function loadCandidateHistory() {
             var dateVal = $('#candidate-history-date').val();
             if (!dateVal) {
@@ -2379,27 +2441,35 @@
                 return;
             }
 
-            var tableBody = $('#candidate-table-body');
-            tableBody.html('<tr><td colspan="12"><div class="loading">加载历史数据中</div></td></tr>');
+            $('#northbound-table-body').html('<tr><td colspan="16"><div class="loading">加载中</div></td></tr>');
+            $('#all-market-table-body').html('<tr><td colspan="14"><div class="loading">加载中</div></td></tr>');
 
             $.get('/api/candidates/history?date=' + encodeURIComponent(dateVal), function(response) {
                 if (!response.success) {
-                    tableBody.html('<tr><td colspan="12"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
+                    $('#northbound-table-body').html('<tr><td colspan="16"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
                     return;
                 }
 
                 var results = response.results[dateVal];
                 if (!results || results.length === 0) {
-                    tableBody.html('<tr><td colspan="12" style="text-align:center;padding:40px;color:#999;">该日期暂无候选股数据</td></tr>');
+                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">该日期暂无候选股数据</td></tr>');
                     return;
                 }
 
+                // 按 has_northbound 拆分
+                var nbResults = results.filter(function(r) { return r.has_northbound; });
+                var amResults = results.filter(function(r) { return !r.has_northbound; });
+
                 $('#candidate-date').text(dateVal);
+                $('#candidate-pool-size').text(nbResults.length + ' / ' + amResults.length + ' 只');
                 $('#candidate-summary').show();
                 $('#candidate-results-section').show();
-                renderCandidatesTable(results);
+
+                renderCandidatesTable(nbResults, 'northbound');
+                renderCandidatesTable(amResults, 'all_market');
+                switchCandidateTab('northbound');
             }).fail(function(xhr) {
-                tableBody.html('<tr><td colspan="12"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
+                $('#northbound-table-body').html('<tr><td colspan="16"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
             });
         }
 
