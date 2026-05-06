@@ -228,6 +228,34 @@ class CandidateStock(Base):
         return f"<CandidateStock(id={self.id}, symbol={self.symbol}, rank={self.rank}, date={self.screening_date})>"
 
 
+class PortfolioRecommendation(Base):
+    """投资组合推荐表 - 每日根据候选股评分生成的持仓建议"""
+
+    __tablename__ = "portfolio_recommendations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    name = Column(String(50))
+    recommendation_type = Column(String(20), nullable=False)
+    combined_score = Column(Numeric(8, 2))
+    current_price = Column(Numeric(10, 2))
+    target_position_pct = Column(Numeric(8, 4))
+    target_amount = Column(Numeric(15, 2))
+    current_quantity = Column(Integer, default=0)
+    suggested_quantity = Column(Integer)
+    is_held = Column(Boolean, default=False)
+    position_id = Column(Integer, ForeignKey("positions.id"), nullable=True)
+    recommendation_date = Column(Date, nullable=False, index=True)
+    reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self) -> str:
+        return (
+            f"<PortfolioRecommendation(id={self.id}, symbol={self.symbol}, "
+            f"type={self.recommendation_type}, date={self.recommendation_date})>"
+        )
+
+
 # 数据库初始化和辅助函数
 def init_database(db_url: str = "sqlite:///position_management.db") -> Session:
     """初始化数据库"""

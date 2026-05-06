@@ -122,6 +122,42 @@
             background: white;
             border-bottom: 1px solid #eee;
         }
+
+        .badge-strong-buy {
+            background-color: #28a745;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-buy {
+            background-color: #17a2b8;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-hold {
+            background-color: #ffc107;
+            color: #333;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-sell {
+            background-color: #dc3545;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -229,6 +265,84 @@
                     </div>
                     <div class="card-body">
                         <canvas id="strategy-comparison-chart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 投资组合推荐 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-robot"></i> 投资组合推荐
+                        </h6>
+                        <div>
+                            <span id="rec-date" class="text-muted me-2"></span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshRecommendations()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="rec-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="rec-holdings-tab" data-bs-toggle="tab"
+                                        data-bs-target="#rec-holdings" type="button" role="tab">
+                                    当前持仓建议
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="rec-buys-tab" data-bs-toggle="tab"
+                                        data-bs-target="#rec-buys" type="button" role="tab">
+                                    Top 10 买入推荐
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content pt-3" id="rec-tab-content">
+                            <div class="tab-pane fade show active" id="rec-holdings" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>股票</th>
+                                                <th>评分</th>
+                                                <th>操作建议</th>
+                                                <th>当前持仓</th>
+                                                <th>建议调整</th>
+                                                <th>建议市值</th>
+                                                <th>原因</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rec-holdings-body">
+                                            <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="rec-buys" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>排名</th>
+                                                <th>股票</th>
+                                                <th>评分</th>
+                                                <th>操作建议</th>
+                                                <th>建议股数</th>
+                                                <th>建议市值</th>
+                                                <th>当前价</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rec-buys-body">
+                                            <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="rec-capital-summary" class="mt-2 text-muted small"></div>
                     </div>
                 </div>
             </div>

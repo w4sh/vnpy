@@ -104,10 +104,11 @@ function initCharts() {
 async function loadDashboardData() {
     try {
         // 并行加载所有数据
-        const [analytics, positions, strategies] = await Promise.all([
+        const [analytics, positions, strategies, recommendations] = await Promise.all([
             fetch('/api/analytics/portfolio').then(r => r.json()),
             fetch('/api/positions').then(r => r.json()),
-            fetch('/api/strategies').then(r => r.json())
+            fetch('/api/strategies').then(r => r.json()),
+            fetch('/api/recommendations/latest').then(r => r.json())
         ]);
 
         // 更新指标卡片
@@ -123,6 +124,9 @@ async function loadDashboardData() {
 
         // 更新策略筛选器
         updateStrategyFilter(strategiesData);
+
+        // 更新推荐
+        renderRecommendations(recommendations);
 
     } catch (error) {
         console.error('加载数据失败:', error);
@@ -332,4 +336,124 @@ function formatPercent(value) {
  */
 function showError(message) {
     alert(message);
+}
+
+// ---------------------------------------------------------------------------
+// 投资组合推荐
+// ---------------------------------------------------------------------------
+
+function renderRecommendations(data) {
+    var recContainer = document.getElementById('rec-holdings-body');
+    var buysContainer = document.getElementById('rec-buys-body');
+    var dateEl = document.getElementById('rec-date');
+    var summaryEl = document.getElementById('rec-capital-summary');
+
+    if (!data || !data.success || !data.recommendations) {
+        if (recContainer) recContainer.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无推荐数据</td></tr>';
+        if (buysContainer) buysContainer.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无推荐数据</td></tr>';
+        return;
+    }
+
+    if (dateEl && data.recommendation_date) {
+        dateEl.textContent = '【推荐日期】' + data.recommendation_date;
+    }
+
+    if (summaryEl && data.summary) {
+        var s = data.summary;
+        summaryEl.textContent =
+            '总资金: ' + fmtNum(s.total_capital || 0) +
+            ' | 已持仓: ' + fmtNum(s.total_market_value || 0) +
+            ' | 可投资金: ' + fmtNum(s.available_investable || 0) +
+            ' | 现金预留: ' + fmtNum(s.cash_reserve || 0);
+    }
+
+    var heldRecs = [];
+    var buyRecs = [];
+    for (var i = 0; i < data.recommendations.length; i++) {
+        var r = data.recommendations[i];
+        if (r.is_held) {
+            heldRecs.push(r);
+        } else {
+            buyRecs.push(r);
+        }
+    }
+
+    // 持仓建议
+    if (heldRecs.length === 0) {
+        recContainer.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无持仓</td></tr>';
+    } else {
+        var html = '';
+        for (var j = 0; j < heldRecs.length; j++) {
+            var hr = heldRecs[j];
+            var qtyCls = '';
+            if (hr.suggested_quantity > 0) qtyCls = 'profit-positive';
+            else if (hr.suggested_quantity < 0) qtyCls = 'profit-negative';
+            html += '<tr>' +
+                '<td><strong>' + escHtml(hr.symbol) + '</strong><br><small class="text-muted">' + escHtml(hr.name || '') + '</small></td>' +
+                '<td>' + (hr.combined_score || 0).toFixed(1) + '</td>' +
+                '<td>' + getActionBadge(hr.recommendation_type) + '</td>' +
+                '<td>' + (hr.current_quantity || 0).toLocaleString() + '</td>' +
+                '<td class="' + qtyCls + '">' + formatQty(hr.suggested_quantity) + '</td>' +
+                '<td>' + fmtNum(hr.target_amount || 0) + '</td>' +
+                '<td><small class="text-muted">' + escHtml(hr.reason || '') + '</small></td>' +
+                '</tr>';
+        }
+        recContainer.innerHTML = html;
+    }
+
+    // 买入推荐
+    if (buyRecs.length === 0) {
+        buysContainer.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无买入推荐</td></tr>';
+    } else {
+        var html2 = '';
+        for (var k = 0; k < buyRecs.length; k++) {
+            var br = buyRecs[k];
+            html2 += '<tr>' +
+                '<td>' + (k + 1) + '</td>' +
+                '<td><strong>' + escHtml(br.symbol) + '</strong><br><small class="text-muted">' + escHtml(br.name || '') + '</small></td>' +
+                '<td>' + (br.combined_score || 0).toFixed(1) + '</td>' +
+                '<td>' + getActionBadge('BUY') + '</td>' +
+                '<td>' + ((br.suggested_quantity || 0) > 0 ? '+': '') + (br.suggested_quantity || 0).toLocaleString() + '</td>' +
+                '<td>' + fmtNum(br.target_amount || 0) + '</td>' +
+                '<td>' + fmtNum(br.current_price || 0) + '</td>' +
+                '</tr>';
+        }
+        buysContainer.innerHTML = html2;
+    }
+}
+
+function getActionBadge(type) {
+    var map = {
+        'STRONG_BUY': '<span class="badge-strong-buy">强烈买入</span>',
+        'BUY': '<span class="badge-buy">买入</span>',
+        'HOLD': '<span class="badge-hold">持有</span>',
+        'SELL': '<span class="badge-sell">卖出</span>'
+    };
+    return map[type] || type;
+}
+
+function formatQty(qty) {
+    if (qty > 0) return '+' + qty.toLocaleString();
+    if (qty < 0) return qty.toLocaleString();
+    return '-';
+}
+
+function fmtNum(val) {
+    return '¥' + Number(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function refreshRecommendations() {
+    fetch('/api/recommendations/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderRecommendations(data);
+        })
+        .catch(function(err) {
+            console.error('刷新推荐失败:', err);
+        });
 }

@@ -43,6 +43,9 @@ from web_app.factor_api import factor_bp
 # 导入因子评估API蓝图
 from web_app.evaluation_api import eval_bp
 
+# 导入投资组合推荐API蓝图
+from web_app.recommendation_api import recommendation_bp
+
 # 导入定时任务
 from web_app.scheduler_tasks import init_scheduler, shutdown_scheduler
 import atexit
@@ -60,6 +63,8 @@ app.register_blueprint(analytics_bp)
 app.register_blueprint(factor_bp)
 # 注册因子评估蓝图
 app.register_blueprint(eval_bp)
+# 注册投资组合推荐蓝图
+app.register_blueprint(recommendation_bp)
 
 # 初始化定时任务
 init_scheduler()

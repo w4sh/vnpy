@@ -206,6 +206,15 @@ def init_scheduler():
         replace_existing=True,
     )
 
+    # 每日投资组合推荐：交易日 15:36（确保筛选和因子更新都已完成）
+    scheduler.add_job(
+        func=run_portfolio_recommendation,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=36),
+        id="daily_portfolio_recommendation",
+        name="每日投资组合推荐",
+        replace_existing=True,
+    )
+
     if not scheduler.running:
         scheduler.start()
         logger.info("定时任务已启动")
@@ -334,6 +343,59 @@ def run_quarterly_factor_update(
 
     except Exception as e:
         logger.error("季频因子更新失败: %s", e)
+
+
+def run_portfolio_recommendation(trade_date: str | None = None):
+    """每日投资组合推荐（交易日 15:36，在候选股筛选和因子更新之后执行）
+
+    参数:
+        trade_date: 交易日 YYYY-MM-DD，默认今天
+    """
+    try:
+        from datetime import date as dt_date
+
+        from web_app.models import Position, Strategy, get_db_session
+        from web_app.recommendation_api import _save_recommendations_to_db
+        from web_app.recommendation_engine import generate_recommendations
+
+        if trade_date:
+            rec_date = dt_date.fromisoformat(trade_date)
+        else:
+            rec_date = dt_date.today()
+
+        logger.info("开始每日投资组合推荐 (date=%s)...", rec_date)
+
+        session = get_db_session()
+        try:
+            results = generate_recommendations(session, rec_date)
+            strategies = (
+                session.query(Strategy).filter(Strategy.status == "active").all()
+            )
+            total_capital = (
+                sum(float(s.current_capital or s.initial_capital) for s in strategies)
+                if strategies
+                else 1_000_000
+            )
+            held_positions = (
+                session.query(Position).filter(Position.status == "holding").all()
+            )
+            total_market_value = sum(float(p.market_value or 0) for p in held_positions)
+
+            _save_recommendations_to_db(
+                results, rec_date, total_capital, total_market_value
+            )
+
+            logger.info(
+                "投资组合推荐完成: held=%d, buy=%d",
+                sum(1 for r in results if r.is_held),
+                sum(
+                    1 for r in results if r.recommendation_type in ("STRONG_BUY", "BUY")
+                ),
+            )
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error("投资组合推荐失败: %s", e)
 
 
 def shutdown_scheduler():
