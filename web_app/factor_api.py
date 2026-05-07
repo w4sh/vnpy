@@ -1,14 +1,15 @@
 """
 前瞻因子 Web API
 
-提供 3 个端点:
-  GET /api/factors/snapshot       — 最新因子快照
+提供 4 个端点:
+  GET /api/factors/snapshot       — 最新因子快照（多维基本面评分）
   GET /api/factors/history        — 单只股票因子历史
   GET /api/factors/detail         — 单只股票维度贡献分解
+  GET /api/factors/dates          — 可用交易日列表
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import polars as pl
 from flask import Blueprint, jsonify, request
@@ -21,6 +22,7 @@ factor_bp = Blueprint("factors", __name__, url_prefix="/api/factors")
 def get_engine():
     """延迟初始化 FactorEngine (导入 Tushare 较慢)
 
+    只注册基本面维度管线。
     若 Tushare Token 未配置，返回 None。
     """
     try:
@@ -30,11 +32,6 @@ def get_engine():
             FundamentalComputer,
             FundamentalStorage,
         )
-        from vnpy.alpha.factors.flow import (
-            FlowFetcher,
-            FlowComputer,
-            FlowStorage,
-        )
 
         engine = FactorEngine()
         engine.register(
@@ -43,13 +40,6 @@ def get_engine():
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
-        )
-        engine.register(
-            "flow",
-            "daily",
-            FlowFetcher(),
-            FlowComputer(),
-            FlowStorage(),
         )
         return engine
     except RuntimeError as e:
@@ -64,7 +54,6 @@ def get_stock_pool():
 
         return StockPoolManager().get_full_pool()
     except ImportError:
-        # fallback: 尝试从候选股模块获取
         try:
             from web_app.candidate.engine import STOCK_POOL
 
@@ -73,9 +62,113 @@ def get_stock_pool():
             return []
 
 
+def _compute_momentum_60d(
+    symbols: list[str],
+    snapshot_df: pl.DataFrame,
+    storage,
+) -> pl.DataFrame:
+    """计算 60 日涨跌幅动量因子
+
+    从 daily parquet 中加载每个股票过去 60 个交易日的 close 价格，
+    计算 (最新价 / 60日前价格 - 1)。
+    若数据不足 60 个交易日，用可用天数计算。
+    """
+    if "close" not in snapshot_df.columns:
+        logger.warning("快照无 close 列，跳过动量计算")
+        return snapshot_df.with_columns(pl.lit(None).alias("momentum_60d"))
+
+    today_str = (
+        snapshot_df["trade_date"].max() if "trade_date" in snapshot_df.columns else None
+    )
+    if not today_str:
+        return snapshot_df.with_columns(pl.lit(None).alias("momentum_60d"))
+
+    end = datetime.strptime(today_str, "%Y%m%d")
+    start = end - timedelta(days=120)  # 拉 120 天确保够 60 个交易日
+
+    try:
+        hist = storage.load(symbols, start, end)
+    except FileNotFoundError:
+        return snapshot_df.with_columns(pl.lit(None).alias("momentum_60d"))
+
+    if hist.is_empty() or "close" not in hist.columns:
+        return snapshot_df.with_columns(pl.lit(None).alias("momentum_60d"))
+
+    # 对每个股票取最新价和 60 个交易日前的价格
+    hist_sorted = hist.sort(["vt_symbol", "trade_date"])
+
+    # 对每个股票，取最新 close 和倒数第 60 个交易日的 close
+    def _compute_return(group: pl.DataFrame) -> pl.Series:
+        prices = group["close"].drop_nulls()
+        if len(prices) < 2:
+            return pl.Series([None] * len(group))
+        current = prices[-1]
+        past_idx = min(60, len(prices)) - 1
+        past = prices[-(past_idx + 1)]
+        if past and past > 0 and current:
+            return pl.Series([current / past - 1.0] * len(group))
+        return pl.Series([None] * len(group))
+
+    # 对每个股票取最新的 close 和最早的可用的 close
+    # 用 drop_nulls() 确保取到非空值
+    latest_close = hist_sorted.group_by("vt_symbol").agg(
+        [
+            pl.col("close").drop_nulls().last().alias("_latest_close"),
+            pl.col("close").drop_nulls().first().alias("_past_close"),
+        ]
+    )
+
+    momentum = latest_close.with_columns(
+        pl.when(pl.col("_past_close") > 0)
+        .then(pl.col("_latest_close") / pl.col("_past_close") - 1.0)
+        .otherwise(pl.lit(None))
+        .alias("momentum_60d")
+    ).select(["vt_symbol", "momentum_60d"])
+
+    return snapshot_df.join(momentum, on="vt_symbol", how="left")
+
+
+def _assemble_full_snapshot(
+    symbols: list[str],
+    snapshot_date: datetime | None = None,
+) -> pl.DataFrame | None:
+    """组装完整因子快照（日频 + 季频 + 动量）
+
+    返回: 包含所有因子列的 DataFrame，或 None（出错时）
+    """
+    # 加载日频因子
+    from vnpy.alpha.factors.fundamental import FundamentalStorage
+
+    storage = FundamentalStorage()
+
+    if snapshot_date:
+        try:
+            daily = storage.load(symbols, snapshot_date, snapshot_date)
+        except FileNotFoundError:
+            return None
+    else:
+        engine = get_engine()
+        if engine is None:
+            return None
+        daily = engine.get_latest_snapshot(symbols)
+
+    if daily.is_empty():
+        return None
+
+    # 加载季频因子
+    quarterly = storage.get_latest_quarterly_snapshot(symbols)
+    if not quarterly.is_empty():
+        daily = daily.join(quarterly, on="vt_symbol", how="left")
+
+    # 计算动量
+    daily = _compute_momentum_60d(symbols, daily, storage)
+
+    return daily
+
+
 @factor_bp.route("/snapshot")
 def snapshot():
-    """获取最新因子快照
+    """获取因子快照（多维基本面评分）
 
     Query params:
         date: 可选，指定日期 YYYY-MM-DD，默认最新
@@ -84,69 +177,73 @@ def snapshot():
     from web_app.stock_names import get_stock_name
 
     try:
+        target_date = request.args.get("date", "").strip()
         symbols = get_stock_pool()
         if not symbols:
             return jsonify({"error": "无可用股票池"}), 500
 
-        engine = get_engine()
-        if engine is None:
+        # 1. 组装因子数据
+        if target_date:
+            try:
+                target_dt = datetime.strptime(target_date, "%Y-%m-%d")
+            except ValueError:
+                return jsonify({"error": "日期格式错误，请使用 YYYY-MM-DD"}), 400
+            snapshot_df = _assemble_full_snapshot(symbols, target_dt)
+        else:
+            snapshot_df = _assemble_full_snapshot(symbols)
+
+        if snapshot_df is None or snapshot_df.is_empty():
+            date_info = target_date or "最新"
             return jsonify(
                 {
                     "count": 0,
                     "data": [],
-                    "message": "Tushare Token 未配置，请设置 TUSHARE_TOKEN 环境变量后重启服务",
+                    "message": f"日期 {date_info} 无因子数据",
                 }
             )
 
-        latest = engine.get_latest_snapshot(symbols)
+        # 2. 多维评分
+        from vnpy.alpha.factors.scoring import compute_multi_dimension_scores
 
-        # 如果没有融合层，先做基本面维度评分
-        from vnpy.alpha.factors.fusion import DimensionScorer
+        scored = compute_multi_dimension_scores(snapshot_df)
+        if scored.is_empty():
+            return jsonify({"count": 0, "data": [], "message": "评分计算失败"})
 
-        if not latest.is_empty():
-            daily_factors = ["pe_ttm", "pb", "ps_ttm"]
-            existing = [c for c in daily_factors if c in latest.columns]
-            if existing:
-                scorer = DimensionScorer()
-                fund_score = scorer.score(latest, existing)
-                latest = latest.join(fund_score, on="vt_symbol", how="left")
-                latest = latest.with_columns(
-                    pl.col("dimension_score").alias("fundamental_score")
-                )
+        sort_col = request.args.get("sort", "final_score")
+        if sort_col in scored.columns:
+            scored = scored.sort(sort_col, descending=True)
 
-            # 融合: fundamental (0.4) + flow (0.15) → 归一化到 0-100
-            f_weight = 0.40
-            flow_weight = 0.15
-            total_weight = f_weight + flow_weight
-
-            if "flow_score" in latest.columns and "fundamental_score" in latest.columns:
-                latest = latest.with_columns(
-                    (
-                        (
-                            pl.col("fundamental_score").fill_null(50.0) * f_weight
-                            + pl.col("flow_score").fill_null(50.0) * flow_weight
-                        )
-                        / total_weight
-                    ).alias("final_score")
-                )
-            elif "fundamental_score" in latest.columns:
-                latest = latest.with_columns(
-                    (pl.col("fundamental_score") * f_weight / total_weight).alias(
-                        "final_score"
-                    )
-                )
-
-            sort_col = request.args.get("sort", "final_score")
-            if sort_col in latest.columns:
-                latest = latest.sort(sort_col, descending=True)
-
-        result = latest.head(50).to_dicts()
+        result = scored.head(50).to_dicts()
         # 补充股票中文名称
         for row in result:
             vt = row.get("vt_symbol", "")
-            if vt and (row.get("name") is None or row.get("name") == "-"):
+            if vt:
                 row["name"] = get_stock_name(vt)
-        return jsonify({"count": len(result), "data": result})
+
+        fields = [
+            "vt_symbol",
+            "name",
+            "industry",
+            "valuation_score",
+            "quality_score",
+            "growth_score",
+            "momentum_score",
+            "final_score",
+            "pe_ttm",
+            "pb",
+            "ps_ttm",
+            "roe",
+            "gross_margin",
+            "debt_to_assets",
+            "revenue_yoy_growth",
+            "net_profit_yoy_growth",
+            "momentum_60d",
+        ]
+        cleaned = []
+        for row in result:
+            cleaned.append({k: row.get(k) for k in fields if k in row})
+
+        return jsonify({"count": len(cleaned), "data": cleaned})
     except Exception as e:
         logger.error(f"因子快照 API 异常: {e}")
         return jsonify({"error": str(e)}), 500
@@ -194,33 +291,52 @@ def detail():
 
     Query params:
         symbol: 600036.SSE
-        date: YYYY-MM-DD
+        date: YYYY-MM-DD（可选，默认最新）
     """
     symbol = request.args.get("symbol", "")
-    # TODO: 支持 date 参数以获取历史日期的维度分解
-    request.args.get("date", "")  # pylint: disable=unused-variable
+    date_str = request.args.get("date", "").strip()
 
     if not symbol:
         return jsonify({"error": "缺少 symbol 参数"}), 400
 
     try:
-        engine = get_engine()
-        if engine is None:
-            return jsonify({"message": "Tushare Token 未配置"})
+        if date_str:
+            try:
+                target_dt = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                return jsonify({"error": "日期格式错误，请使用 YYYY-MM-DD"}), 400
+            full = _assemble_full_snapshot([symbol], target_dt)
+        else:
+            full = _assemble_full_snapshot([symbol])
 
-        latest = engine.get_latest_snapshot([symbol])
-        if latest.is_empty() or len(latest) == 0:
+        if full is None or full.is_empty():
             return jsonify({"message": "无数据"})
 
-        row = latest.row(0, named=True)
+        # 多维评分
+        from vnpy.alpha.factors.scoring import compute_multi_dimension_scores
 
-        # 构建维度贡献分解
+        scored = compute_multi_dimension_scores(full)
+        if scored.is_empty():
+            return jsonify({"message": "评分计算失败"})
+
+        row = scored.row(0, named=True)
         detail = {
             "symbol": symbol,
             "date": str(row.get("trade_date", "")),
+            "industry": row.get("industry", ""),
+            "valuation_score": row.get("valuation_score"),
+            "quality_score": row.get("quality_score"),
+            "growth_score": row.get("growth_score"),
+            "momentum_score": row.get("momentum_score"),
+            "final_score": row.get("final_score"),
             "pe_ttm": row.get("pe_ttm"),
             "pb": row.get("pb"),
             "ps_ttm": row.get("ps_ttm"),
+            "roe": row.get("roe"),
+            "gross_margin": row.get("gross_margin"),
+            "debt_to_assets": row.get("debt_to_assets"),
+            "revenue_yoy_growth": row.get("revenue_yoy_growth"),
+            "net_profit_yoy_growth": row.get("net_profit_yoy_growth"),
         }
 
         return jsonify({"data": detail})
@@ -229,26 +345,21 @@ def detail():
         return jsonify({"error": str(e)}), 500
 
 
-@factor_bp.route("/flow")
-def flow_series():
-    """获取北向资金流向时间序列
+@factor_bp.route("/dates")
+def get_factor_dates():
+    """获取日频因子数据中可用的交易日列表
 
-    返回: trade_date, north_net, flow_score, north_ma5/10/20
+    Returns:
+        {success: bool, dates: [str], count: int}
     """
     try:
-        engine = get_engine()
-        if engine is None:
-            return jsonify({"count": 0, "data": [], "message": "Tushare Token 未配置"})
+        from vnpy.alpha.factors.fundamental import FundamentalStorage
 
-        from vnpy.alpha.factors.flow.storage import FlowStorage
-
-        storage = FlowStorage()
-        try:
-            df = storage.load()
-            result = df.sort("trade_date").tail(90).to_dicts()
-            return jsonify({"count": len(result), "data": result})
-        except FileNotFoundError:
-            return jsonify({"count": 0, "data": [], "message": "暂无资金流向数据"})
+        storage = FundamentalStorage()
+        dates = storage.get_available_dates()
+        # YYYYMMDD → YYYY-MM-DD
+        formatted = [f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in dates if len(d) == 8]
+        return jsonify({"success": True, "dates": formatted, "count": len(formatted)})
     except Exception as e:
-        logger.error(f"资金流向 API 异常: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"获取因子日期列表失败: {e}")
+        return jsonify({"success": False, "dates": [], "count": 0})

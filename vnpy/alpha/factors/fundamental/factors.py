@@ -54,8 +54,8 @@ class FundamentalComputer(FactorComputer):
             .alias("vt_symbol"),
         )
 
-        # 只保留需要的因子列
-        keep_cols = ["trade_date", "vt_symbol", "pe_ttm", "pb", "ps_ttm"]
+        # 只保留需要的因子列（保留 close 用于计算动量因子）
+        keep_cols = ["trade_date", "vt_symbol", "pe_ttm", "pb", "ps_ttm", "close"]
         existing = [c for c in keep_cols if c in df.columns]
         df = df.select(existing)
 

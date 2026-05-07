@@ -133,7 +133,6 @@ def check_api_access(api_names: list[str] | None = None) -> AccessCheckResult:
             "fina_indicator",
             "income",
             "balancesheet",
-            "moneyflow_hsgt",
             "hk_hold",
         ]
 
@@ -161,8 +160,6 @@ def check_api_access(api_names: list[str] | None = None) -> AccessCheckResult:
                 result = pro.income(ts_code="000001.SZ", limit=1)
             elif api_name == "balancesheet":
                 result = pro.balancesheet(ts_code="000001.SZ", limit=1)
-            elif api_name == "moneyflow_hsgt":
-                result = pro.moneyflow_hsgt(start_date="20250101", end_date="20250101")
             elif api_name == "hk_hold":
                 result = pro.hk_hold(trade_date="20250101", limit=1)
             else:

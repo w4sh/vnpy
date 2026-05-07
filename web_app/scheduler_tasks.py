@@ -4,7 +4,7 @@
 - 定时重算dirty策略（每5分钟）
 - 恢复卡死的recomputing状态（每10分钟）
 - 每日候选股筛选（交易日 15:30）
-- 日终前瞻因子增量更新（交易日 15:35，仅日频数据）
+- 日终前瞻因子增量更新（交易日 15:35，仅基本面日频数据）
 
 季度因子更新因涉及全量A股逐只拉取（耗时 80+ 分钟），不适合日终定时执行，
 改为单独的 Monthly 任务或手动执行 `run_quarterly_factor_update()`。
@@ -239,7 +239,7 @@ def init_scheduler():
 
 
 def run_daily_factor_update(trade_date: str | None = None):
-    """日终增量更新前瞻因子（仅日频数据：daily_basic + 北向资金流向）
+    """日终增量更新前瞻因子（仅日频数据：daily_basic）
 
     参数:
         trade_date: 交易日 YYYYMMDD，默认今天
@@ -256,7 +256,6 @@ def run_daily_factor_update(trade_date: str | None = None):
             FundamentalFetcher,
             FundamentalStorage,
         )
-        from vnpy.alpha.factors.flow import FlowComputer, FlowFetcher, FlowStorage
         from vnpy.alpha.factors.stock_pool import StockPoolManager
 
         pool_manager = StockPoolManager()
@@ -270,13 +269,6 @@ def run_daily_factor_update(trade_date: str | None = None):
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
-        )
-        engine.register(
-            "flow",
-            "daily",
-            FlowFetcher(),
-            FlowComputer(),
-            FlowStorage(),
         )
 
         daily_result = engine.run_daily(full_pool, trade_date)
@@ -325,7 +317,6 @@ def run_quarterly_factor_update(
             FundamentalFetcher,
             FundamentalStorage,
         )
-        from vnpy.alpha.factors.flow import FlowComputer, FlowFetcher, FlowStorage
         from vnpy.alpha.factors.stock_pool import StockPoolManager
 
         pool_manager = StockPoolManager()
@@ -344,13 +335,6 @@ def run_quarterly_factor_update(
             FundamentalFetcher(),
             FundamentalComputer(),
             FundamentalStorage(),
-        )
-        engine.register(
-            "flow",
-            "daily",
-            FlowFetcher(),
-            FlowComputer(),
-            FlowStorage(),
         )
         engine.init_stock_pool()
 

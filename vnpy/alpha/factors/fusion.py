@@ -14,9 +14,8 @@ logger = logging.getLogger(__name__)
 
 # 默认权重：各维度等权
 DEFAULT_WEIGHTS = {
-    "technical": 0.45,
-    "fundamental": 0.40,
-    "flow": 0.15,
+    "technical": 0.50,
+    "fundamental": 0.50,
     "sentiment": 0.0,
 }
 

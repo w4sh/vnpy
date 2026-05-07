@@ -98,6 +98,42 @@ class FundamentalStorage(FactorStorage):
         latest_date = df["trade_date"].max()
         return df.filter(pl.col("trade_date") == latest_date)
 
+    def get_available_dates(self) -> list[str]:
+        """获取日频因子数据中可用的交易日列表（降序）"""
+        if not self.daily_path.exists():
+            return []
+        df = pl.read_parquet(self.daily_path)
+        return df["trade_date"].unique().sort(descending=True).to_list()
+
+    def get_latest_quarterly_snapshot(self, symbols: list[str]) -> pl.DataFrame:
+        """获取最新季频因子快照（前值填充到当前）
+
+        对每只股票取最新公告的因子值（基于 pub_date 取最新），
+        pivot 为宽表格式 vt_symbol | roe | gross_margin | debt_to_assets | ...
+
+        返回: 若无季频数据则返回空 DataFrame
+        """
+        if not self.quarterly_path.exists():
+            return pl.DataFrame()
+
+        df = pl.read_parquet(str(self.quarterly_path))
+        df = df.filter(pl.col("vt_symbol").is_in(symbols))
+        if df.is_empty():
+            return pl.DataFrame()
+
+        # 对每组 vt_symbol + factor_name，取 pub_date 最新的行
+        latest = df.sort("pub_date", descending=True).unique(
+            subset=["vt_symbol", "factor_name"], keep="first"
+        )
+
+        # Pivot: factor_name → 列
+        pivoted = latest.pivot(
+            index="vt_symbol",
+            columns="factor_name",
+            values="factor_value",
+        )
+        return pivoted
+
     # ---- 格式转换 ----
 
     def to_wide_format(

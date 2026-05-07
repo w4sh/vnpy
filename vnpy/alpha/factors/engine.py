@@ -151,7 +151,6 @@ class FactorEngine:
         """获取最新交易日因子快照（供 Web API）
 
         多个维度的数据通过 vt_symbol join 合并。
-        对于市场级维度（如 flow），先广播到所有 symbols。
         """
         base = pl.DataFrame({"vt_symbol": symbols})
         for pipeline in self.pipelines.values():
@@ -385,9 +384,6 @@ class FactorEngine:
         from vnpy.alpha.factors.fundamental.fetcher import FundamentalFetcher
         from vnpy.alpha.factors.fundamental.factors import FundamentalComputer
 
-        from vnpy.alpha.factors.flow.fetcher import FlowFetcher
-        from vnpy.alpha.factors.flow.factors import FlowComputer
-
         if isinstance(pipeline.fetcher, FundamentalFetcher):
             if not isinstance(pipeline.computer, FundamentalComputer):
                 return {"error": "computer 类型不匹配"}
@@ -395,21 +391,10 @@ class FactorEngine:
             if raw.is_empty():
                 return {"fetched": 0, "stored": 0}
             factors = pipeline.computer.compute_daily(raw)
-            # 使用 hasattr 检查 storage 方法，避免抽象基类属性缺失
             if hasattr(pipeline.storage, "save_daily"):
                 pipeline.storage.save_daily(factors)
             else:
                 pipeline.storage.save(factors)
-            return {"fetched": len(raw), "stored": len(factors)}
-
-        elif isinstance(pipeline.fetcher, FlowFetcher):
-            if not isinstance(pipeline.computer, FlowComputer):
-                return {"error": "computer 类型不匹配"}
-            raw = pipeline.fetcher.fetch_hsgt_flow(trade_date)
-            if raw.is_empty():
-                return {"fetched": 0, "stored": 0}
-            factors = pipeline.computer.compute_flow(raw)
-            pipeline.storage.save(factors)
             return {"fetched": len(raw), "stored": len(factors)}
 
         return {"skipped": True}

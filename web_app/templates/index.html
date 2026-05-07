@@ -90,6 +90,44 @@
             display: block;
         }
 
+        .sub-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e8e8ff;
+            padding-bottom: 0;
+        }
+
+        .sub-nav-btn {
+            padding: 10px 24px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #999;
+            transition: all 0.2s;
+        }
+
+        .sub-nav-btn:hover {
+            color: #667eea;
+        }
+
+        .sub-nav-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .sub-page {
+            display: none;
+        }
+
+        .sub-page.active {
+            display: block;
+        }
+
         .section {
             margin-bottom: 30px;
         }
@@ -623,8 +661,7 @@
             <button class="nav-btn" onclick="showPage('picker')">智能选股</button>
             <button class="nav-btn" onclick="showPage('compare')">策略对比</button>
             <button class="nav-btn" onclick="showPage('position')">持仓管理</button>
-            <button class="nav-btn" onclick="showPage('candidate')">股票候选</button>
-            <button class="nav-btn" onclick="showPage('indicators')">前瞻指标</button>
+            <button class="nav-btn" onclick="showPage('stocks')">股票推荐</button>
             <button class="nav-btn" onclick="showPage('etf')">指数推荐</button>
         </div>
 
@@ -1040,148 +1077,123 @@
                 </div>
             </div>
 
-            <!-- 股票候选页面 -->
-            <div id="candidate-page" class="page">
-                <div class="section">
-                    <h3>📊 股票候选推荐</h3>
-                    <div class="info-box" id="candidate-summary" style="display: none;">
-                        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
-                            <div>
-                                <span style="color: #666;">筛选日期：</span>
-                                <strong id="candidate-date">-</strong>
+            <!-- 股票推荐页面（统一入口） -->
+            <div id="stocks-page" class="page">
+                <div class="sub-nav">
+                    <button class="sub-nav-btn active" onclick="showStockTab('fundamental')">综合评分</button>
+                    <button class="sub-nav-btn" onclick="showStockTab('signal')">策略信号</button>
+                </div>
+
+                <div id="fundamental-tab" class="sub-page active">
+                    <div class="section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:15px;">
+                            <h4 style="margin:0;color:#667eea;">综合评分</h4>
+                            <div class="flatpickr-wrapper" style="display:inline-block;position:relative;">
+                                <input type="text" id="factor-date-input" readonly style="cursor:pointer;padding:4px 28px 4px 14px;background:#f0f2ff;border:1px solid #667eea;border-radius:6px;color:#667eea;font-size:13px;width:120px;outline:none;" value="选择日期">
+                                <span style="position:absolute;right:8px;top:5px;font-size:10px;color:#667eea;pointer-events:none;">▼</span>
                             </div>
-                            <div>
-                                <span style="color: #666;">推荐个股：</span>
-                                <strong id="candidate-pool-size">-</strong>
-                            </div>
-                            <div>
-                                <span style="color: #666;">筛选耗时：</span>
-                                <strong id="candidate-elapsed">-</strong>
-                            </div>
+                            <button onclick="loadLatestFactors()" style="padding:4px 12px;background:#667eea;border:none;border-radius:6px;color:white;font-size:13px;cursor:pointer;">最新</button>
+                            <span style="font-size:12px;color:#999;margin-left:8px;">行业中性化估值·质量·成长·动量多维度合成</span>
+                        </div>
+
+                        <div style="overflow-x:auto;">
+                            <table class="table table-hover mb-0" id="indicator-table">
+                                <thead>
+                                    <tr>
+                                        <th>排名</th>
+                                        <th>代码</th>
+                                        <th>名称</th>
+                                        <th>行业</th>
+                                        <th>综合评分</th>
+                                        <th>估值</th>
+                                        <th>质量</th>
+                                        <th>成长</th>
+                                        <th>动量</th>
+                                        <th>PE</th>
+                                        <th>ROE(%)</th>
+                                        <th>毛利率(%)</th>
+                                        <th>营收增速(%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="indicator-tbody"></tbody>
+                            </table>
                         </div>
                     </div>
-                    <!-- 历史日期查询 -->
-                    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <strong style="color:#555;">历史数据</strong>
-                        <div class="flatpickr-wrapper" style="display:inline-block; position:relative;">
-                            <input type="text" id="candidate-date-input" readonly style="cursor:pointer; padding:4px 28px 4px 14px; background:#f0f2ff; border:1px solid #667eea; border-radius:6px; color:#667eea; font-size:13px; width:120px; outline:none;" value="选择日期">
-                            <span style="position:absolute; right:8px; top:5px; font-size:10px; color:#667eea; pointer-events:none;">▼</span>
+
+                    <div class="section">
+                        <h4 style="color:#667eea;margin-bottom:15px;">因子评分历史曲线</h4>
+                        <div style="display:flex;gap:10px;margin-bottom:15px;">
+                            <input type="text" id="chart-symbol" style="flex:1;max-width:300px;padding:6px 12px;border:1px solid #ddd;border-radius:6px;" placeholder="输入股票代码，如 600036.SSE">
+                            <button onclick="loadFactorHistory()" style="padding:6px 16px;background:#667eea;border:none;border-radius:6px;color:white;cursor:pointer;">查询历史</button>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="loadCandidates()">最新</button>
-                        <span id="candidate-dates-hint" style="font-size:12px;color:#999;"></span>
+                        <div style="height:350px;">
+                            <canvas id="factor-history-chart"></canvas>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Tab 切换 -->
-                <div class="section" id="candidate-results-section" style="display: none;">
+                <div id="signal-tab" class="sub-page">
+                    <div class="section">
+                        <h4 style="color:#667eea;margin-bottom:15px;">策略信号</h4>
+                        <div class="info-box" id="candidate-summary" style="display: none;">
+                            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                                <div>
+                                    <span style="color: #666;">筛选日期：</span>
+                                    <strong id="candidate-date">-</strong>
+                                </div>
+                                <div>
+                                    <span style="color: #666;">推荐个股：</span>
+                                    <strong id="candidate-pool-size">-</strong>
+                                </div>
+                                <div>
+                                    <span style="color: #666;">筛选耗时：</span>
+                                    <strong id="candidate-elapsed">-</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <strong style="color:#555;">历史数据</strong>
+                            <div class="flatpickr-wrapper" style="display:inline-block; position:relative;">
+                                <input type="text" id="candidate-date-input" readonly style="cursor:pointer; padding:4px 28px 4px 14px; background:#f0f2ff; border:1px solid #667eea; border-radius:6px; color:#667eea; font-size:13px; width:120px; outline:none;" value="选择日期">
+                                <span style="position:absolute; right:8px; top:5px; font-size:10px; color:#667eea; pointer-events:none;">▼</span>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="loadCandidates()">最新</button>
+                            <span id="candidate-dates-hint" style="font-size:12px;color:#999;"></span>
+                        </div>
+                    </div>
 
-                    <!-- 候选股推荐表格 -->
-                    <table class="results-table" id="candidates-table">
-                        <thead>
-                            <tr>
-                                <th>排名</th>
-                                <th>股票代码</th>
-                                <th>名称</th>
-                                <th>收盘价</th>
-                                <th>技术分</th>
-                                <th>绩效分</th>
-                                <th>综合分</th>
-                                <th>动量</th>
-                                <th>趋势</th>
-                                <th>量价</th>
-                                <th>波动</th>
-                                <th>总收益</th>
-                                <th>最大回撤</th>
-                                <th>夏普</th>
-                            </tr>
-                        </thead>
-                        <tbody id="candidates-table-body"></tbody>
-                    </table>
-                </div>
+                    <div class="section" id="candidate-results-section" style="display: none;">
+                        <table class="results-table" id="candidates-table">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>股票代码</th>
+                                    <th>名称</th>
+                                    <th>收盘价</th>
+                                    <th>技术分</th>
+                                    <th>绩效分</th>
+                                    <th>综合分</th>
+                                    <th>动量</th>
+                                    <th>趋势</th>
+                                    <th>量价</th>
+                                    <th>波动</th>
+                                    <th>总收益</th>
+                                    <th>最大回撤</th>
+                                    <th>夏普</th>
+                                </tr>
+                            </thead>
+                            <tbody id="candidates-table-body"></tbody>
+                        </table>
+                    </div>
 
-                <div id="candidate-detail-panel" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <h4 style="color: #667eea; margin-bottom: 15px;">因子得分详情</h4>
-                    <div style="display: flex; justify-content: center;">
-                        <canvas id="candidate-radar-chart" width="300" height="300"></canvas>
+                    <div id="candidate-detail-panel" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <h4 style="color: #667eea; margin-bottom: 15px;">因子得分详情</h4>
+                        <div style="display: flex; justify-content: center;">
+                            <canvas id="candidate-radar-chart" width="300" height="300"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- 前瞻指标页面 -->
-            <div id="indicators-page" class="page">
-                <div class="container-fluid mt-3">
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">前瞻指标仪表盘</h5>
-                                    <small id="indicator-date" class="text-muted"></small>
-                                </div>
-                                <div class="card-body p-0">
-                                    <table class="table table-hover mb-0" id="indicator-table">
-                                        <thead>
-                                            <tr>
-                                                <th>排名</th>
-                                                <th>代码</th>
-                                                <th>名称</th>
-                                                <th>综合评分</th>
-                                                <th>PE倒数</th>
-                                                <th>PB倒数</th>
-                                                <th>PS倒数</th>
-                                                <th>基本面</th>
-                                                <th>资金面</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="indicator-tbody"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 因子历史曲线 -->
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">因子评分历史曲线</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row mb-2">
-                                        <div class="col-md-3">
-                                            <input type="text" class="form-control" id="chart-symbol"
-                                                   placeholder="输入股票代码，如 600036.SSE">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <button class="btn btn-primary btn-sm" onclick="loadFactorHistory()">
-                                                查询历史
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div style="height:350px;">
-                                        <canvas id="factor-history-chart"></canvas>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-	        <!-- 北向资金流向趋势 -->
-	        <div class="row mb-3">
-	            <div class="col-12">
-	                <div class="card">
-	                    <div class="card-header">
-	                        <h5 class="mb-0">北向资金流向趋势 <small class="text-muted" id="flow-score-label"></small></h5>
-	                    </div>
-	                    <div class="card-body">
-	                        <div style="height:300px;">
-	                            <canvas id="flow-chart"></canvas>
-	                        </div>
-	                    </div>
-	                </div>
-	            </div>
-	        </div>
-	    </div>
 
 	<!-- ETF 推荐页面 -->
 <div id="etf-page" class="page">
@@ -1475,9 +1487,8 @@
                 return $(this).text().trim().indexOf(getPageLabel(pageName)) !== -1;
             }).addClass('active');
 
-            if (pageName === 'candidate') {
-                loadCandidates();
-                loadCandidateDates();
+            if (pageName === 'stocks') {
+                showStockTab('fundamental');
             }
             if (pageName === 'position') {
                 showPositionSubPage('overview');
@@ -1493,11 +1504,28 @@
                 'picker': '智能选股',
                 'compare': '策略对比',
                 'position': '持仓管理',
-                'candidate': '股票候选',
-                'indicators': '前瞻指标',
+                'stocks': '股票推荐',
                 'etf': '指数推荐'
             };
             return labels[pageName] || '';
+        }
+
+        // 股票推荐页面子标签切换
+        function showStockTab(tabName) {
+            $('.sub-nav-btn').removeClass('active');
+            $('.sub-nav-btn[onclick*="' + tabName + '"]').addClass('active');
+            $('.sub-page').removeClass('active');
+            $('#' + tabName + '-tab').addClass('active');
+
+            if (tabName === 'fundamental') {
+                loadFactorDates();
+            }
+            if (tabName === 'signal') {
+                loadCandidates();
+                loadCandidateDates();
+            }
+            // 重新触发 Chart.js 容器自适应
+            window.dispatchEvent(new Event('resize'));
         }
 
         // 加载策略列表
@@ -3167,49 +3195,91 @@
 
         // ============ 前瞻指标页面 ============
         let historyChart = null;
+        let factorPicker = null;
 
-        async function loadFactorSnapshot() {
+        async function loadFactorDates() {
             try {
-                const resp = await fetch('/api/factors/snapshot');
+                const resp = await fetch('/api/factors/dates');
+                const data = await resp.json();
+                if (!data.dates) return;
+
+                factorPicker = flatpickr("#factor-date-input", {
+                    enable: data.dates,
+                    dateFormat: "Y-m-d",
+                    onChange: function(selectedDates, dateStr) {
+                        loadFactorSnapshot(dateStr);
+                    },
+                });
+
+                if (data.dates.length > 0) {
+                    var latest = data.dates[0];
+                    factorPicker.setDate(latest, true);
+                }
+            } catch (err) {
+                console.error('加载因子日期列表失败:', err);
+            }
+        }
+
+        async function loadLatestFactors() {
+            try {
+                const resp = await fetch('/api/factors/dates');
+                const data = await resp.json();
+                if (!data.dates || data.dates.length === 0) return;
+                var latest = data.dates[0];
+                if (factorPicker) {
+                    factorPicker.setDate(latest, true);
+                }
+            } catch (err) {
+                console.error('加载最新日期失败:', err);
+            }
+        }
+
+        async function loadFactorSnapshot(dateStr) {
+            try {
+                var url = '/api/factors/snapshot';
+                if (dateStr) {
+                    url += '?date=' + encodeURIComponent(dateStr);
+                }
+                const resp = await fetch(url);
                 const data = await resp.json();
                 if (!data.data) return;
-
-                if (data.data.length > 0) {
-                    $('#indicator-date').text('数据日期: ' + (data.data[0].trade_date || '-'));
-                }
 
                 const tbody = $('#indicator-tbody');
                 tbody.empty();
 
                 data.data.forEach(function(row, i) {
-                    const pe = row.pe_ttm ? parseFloat(row.pe_ttm).toFixed(4) : '-';
-                    const pb = row.pb ? parseFloat(row.pb).toFixed(4) : '-';
-                    const ps = row.ps_ttm ? parseFloat(row.ps_ttm).toFixed(4) : '-';
-                    const fScore = row.fundamental_score
-                        ? parseFloat(row.fundamental_score).toFixed(1)
-                        : '-';
-                    const flowScore = row.flow_score
-                        ? parseFloat(row.flow_score).toFixed(1)
-                        : '-';
-                    const final = row.final_score
-                        ? parseFloat(row.final_score).toFixed(1)
-                        : '-';
+                    var final = row.final_score !== null && row.final_score !== undefined
+                        ? parseFloat(row.final_score).toFixed(1) : '-';
+                    var val = row.valuation_score !== null ? parseFloat(row.valuation_score).toFixed(1) : '-';
+                    var qual = row.quality_score !== null ? parseFloat(row.quality_score).toFixed(1) : '-';
+                    var gro = row.growth_score !== null ? parseFloat(row.growth_score).toFixed(1) : '-';
+                    var mom = row.momentum_score !== null ? parseFloat(row.momentum_score).toFixed(1) : '-';
+                    var pe = row.pe_ttm !== null ? parseFloat(row.pe_ttm).toFixed(2) : '-';
+                    var roe = row.roe !== null ? parseFloat(row.roe * 100).toFixed(1) : '-';
+                    var gm = row.gross_margin !== null ? parseFloat(row.gross_margin * 100).toFixed(1) : '-';
+                    var rev = row.revenue_yoy_growth !== null ? parseFloat(row.revenue_yoy_growth * 100).toFixed(1) : '-';
 
-                    const scoreNum = parseFloat(final);
-                    const scoreColor = scoreNum >= 70 ? 'text-success'
-                        : scoreNum >= 40 ? 'text-warning' : 'text-danger';
+                    var scoreNum = parseFloat(final);
+                    var scoreColor = 'text-muted';
+                    if (!isNaN(scoreNum)) {
+                        scoreColor = scoreNum >= 70 ? 'text-success' : scoreNum >= 40 ? 'text-warning' : 'text-danger';
+                    }
 
                     tbody.append(
                         '<tr style="cursor:pointer" onclick="$(\'#chart-symbol\').val(\'' + row.vt_symbol + '\'); loadFactorHistory();">' +
                         '<td>' + (i + 1) + '</td>' +
                         '<td><strong>' + row.vt_symbol + '</strong></td>' +
                         '<td>' + (row.name || '-') + '</td>' +
+                        '<td style="font-size:0.85em;color:#888;">' + (row.industry || '-') + '</td>' +
                         '<td class="' + scoreColor + ' fw-bold">' + final + '</td>' +
+                        '<td>' + val + '</td>' +
+                        '<td>' + qual + '</td>' +
+                        '<td>' + gro + '</td>' +
+                        '<td>' + mom + '</td>' +
                         '<td>' + pe + '</td>' +
-                        '<td>' + pb + '</td>' +
-                        '<td>' + ps + '</td>' +
-                        '<td>' + fScore + '</td>' +
-                        '<td>' + flowScore + '</td>' +
+                        '<td>' + roe + '</td>' +
+                        '<td>' + gm + '</td>' +
+                        '<td>' + rev + '</td>' +
                         '</tr>'
                     );
                 });
@@ -3284,115 +3354,12 @@
             }
         }
 
-        // ============ 北向资金流向图表 ============
-        let flowChart = null;
-
-        async function loadFlowChart() {
-            try {
-                const resp = await fetch('/api/factors/flow');
-                const data = await resp.json();
-                if (!data.data || data.data.length === 0) return;
-
-                const dates = data.data.map(function(r) { return r.trade_date; });
-                const northSeries = data.data.map(function(r) { return r.north_net ? parseFloat(r.north_net) : null; });
-                const ma5Series = data.data.map(function(r) { return r.north_ma5 ? parseFloat(r.north_ma5) : null; });
-                const ma10Series = data.data.map(function(r) { return r.north_ma10 ? parseFloat(r.north_ma10) : null; });
-                const scoreSeries = data.data.map(function(r) { return r.flow_score ? parseFloat(r.flow_score) : null; });
-
-                const canvas = document.getElementById('flow-chart');
-                const existing = Chart.getChart(canvas);
-                if (existing) existing.destroy();
-
-                const ctx = canvas.getContext('2d');
-                flowChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: [
-                            {
-                                label: '北向净流入(亿)',
-                                data: northSeries,
-                                borderColor: '#E53935',
-                                backgroundColor: 'rgba(229,57,53,0.1)',
-                                fill: true,
-                                tension: 0.2,
-                                spanGaps: true,
-                                yAxisID: 'y',
-                            },
-                            {
-                                label: 'MA5',
-                                data: ma5Series,
-                                borderColor: '#FF7043',
-                                borderDash: [5, 5],
-                                tension: 0.2,
-                                spanGaps: true,
-                                yAxisID: 'y',
-                            },
-                            {
-                                label: 'MA10',
-                                data: ma10Series,
-                                borderColor: '#FFA726',
-                                borderDash: [3, 3],
-                                tension: 0.2,
-                                spanGaps: true,
-                                yAxisID: 'y',
-                            },
-                            {
-                                label: '情绪评分',
-                                data: scoreSeries,
-                                borderColor: '#4CAF50',
-                                borderWidth: 2,
-                                tension: 0.2,
-                                spanGaps: true,
-                                yAxisID: 'y1',
-                            },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: { tooltip: { mode: 'index' } },
-                        scales: {
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: { display: true, text: '亿元' },
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                title: { display: true, text: '评分(0-100)' },
-                                min: 0,
-                                max: 100,
-                                grid: { drawOnChartArea: false },
-                            },
-                        },
-                    },
-                });
-
-                // 更新评分标签
-                const last = data.data[data.data.length - 1];
-                if (last && last.flow_score) {
-                    const score = parseFloat(last.flow_score).toFixed(1);
-                    const color = score >= 60 ? 'text-success' : score >= 40 ? 'text-warning' : 'text-danger';
-                    $('#flow-score-label').html('当前情绪: <span class="' + color + ' fw-bold">' + score + '</span>');
-                }
-            } catch (err) {
-                console.error('加载资金流向图表失败:', err);
-            }
-        }
-
         // Hook into existing showPage function
         const _originalShowPage = showPage;
         showPage = function(pageName) {
             _originalShowPage(pageName);
             if (pageName === 'indicators') {
-                loadFactorSnapshot();
-                loadFlowChart();
-                $('#indicator-date').text('');
+                loadFactorDates();
             }
         };
 

@@ -81,6 +81,7 @@ class FundamentalFetcher(DataFetcher):
         keep_cols = [
             "trade_date",
             "ts_code",
+            "close",
             "pe",
             "pe_ttm",
             "pb",
