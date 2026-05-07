@@ -1086,37 +1086,79 @@
 
                 <div id="fundamental-tab" class="sub-page active">
                     <div class="section">
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:15px;">
-                            <h4 style="margin:0;color:#667eea;">综合评分</h4>
-                            <div class="flatpickr-wrapper" style="display:inline-block;position:relative;">
-                                <input type="text" id="factor-date-input" readonly style="cursor:pointer;padding:4px 28px 4px 14px;background:#f0f2ff;border:1px solid #667eea;border-radius:6px;color:#667eea;font-size:13px;width:120px;outline:none;" value="选择日期">
-                                <span style="position:absolute;right:8px;top:5px;font-size:10px;color:#667eea;pointer-events:none;">▼</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin:0;">综合评分</h3>
+                            <div>
+                                <span id="fundamental-data-date" style="color: #666; font-size: 0.9em; margin-right: 15px;">数据日期：--</span>
+                                <div class="flatpickr-wrapper" style="display:inline-block; position:relative; vertical-align:middle;">
+                                    <input type="text" id="factor-date-input" readonly style="cursor:pointer; padding:4px 28px 4px 14px; background:#f0f2ff; border:1px solid #667eea; border-radius:6px; color:#667eea; font-size:13px; width:120px; outline:none;" value="选择日期">
+                                    <span style="position:absolute; right:8px; top:5px; font-size:10px; color:#667eea; pointer-events:none;">▼</span>
+                                </div>
+                                <button class="btn" onclick="loadLatestFactors()" style="padding: 8px 20px; font-size: 0.9em;">最新数据</button>
                             </div>
-                            <button onclick="loadLatestFactors()" style="padding:4px 12px;background:#667eea;border:none;border-radius:6px;color:white;font-size:13px;cursor:pointer;">最新</button>
-                            <span style="font-size:12px;color:#999;margin-left:8px;">行业中性化估值·质量·成长·动量多维度合成</span>
+                        </div>
+                        <p style="color: #666; margin-bottom: 15px;">行业中性化估值·质量·成长·动量多维度合成评分，基于日频+季频基本面因子</p>
+
+                        <!-- 统计概览 -->
+                        <div class="etf-stat-cards" id="fundamental-stat-cards" style="display:none;">
+                            <div class="etf-stat-card"><div class="label">股票池</div><div class="value" id="fundamental-total">--</div></div>
+                            <div class="etf-stat-card" style="background: linear-gradient(135deg, #3498db, #2980b9);"><div class="label">综合评分均值</div><div class="value" id="fundamental-avg-score">--</div></div>
+                            <div class="etf-stat-card" style="background: linear-gradient(135deg, #27ae60, #2ecc71);"><div class="label">估值评分均值</div><div class="value" id="fundamental-avg-valuation">--</div></div>
+                            <div class="etf-stat-card" style="background: linear-gradient(135deg, #00bcd4, #4dd0e1);"><div class="label">质量评分均值</div><div class="value" id="fundamental-avg-quality">--</div></div>
+                            <div class="etf-stat-card" style="background: linear-gradient(135deg, #f39c12, #f1c40f);"><div class="label">动量评分均值</div><div class="value" id="fundamental-avg-momentum">--</div></div>
                         </div>
 
-                        <div style="overflow-x:auto;">
-                            <table class="table table-hover mb-0" id="indicator-table">
-                                <thead>
-                                    <tr>
-                                        <th>排名</th>
-                                        <th>代码</th>
-                                        <th>名称</th>
-                                        <th>行业</th>
-                                        <th>综合评分</th>
-                                        <th>估值</th>
-                                        <th>质量</th>
-                                        <th>成长</th>
-                                        <th>动量</th>
-                                        <th>PE</th>
-                                        <th>ROE(%)</th>
-                                        <th>毛利率(%)</th>
-                                        <th>营收增速(%)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="indicator-tbody"></tbody>
-                            </table>
+                        <div style="display: flex; gap: 20px;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h4 style="margin: 0;">多维度评分排名</h4>
+                                    <span id="factor-ranking-hint" style="font-size:12px;color:#999;"></span>
+                                </div>
+                                <div id="fundamental-loading" class="loading" style="display:none;">加载中</div>
+                                <div id="fundamental-error" class="error" style="display:none;"></div>
+                                <div style="overflow-x:auto;">
+                                    <table class="etf-table" id="fundamental-table" style="display:none;">
+                                        <thead>
+                                            <tr>
+                                                <th>排名</th>
+                                                <th>代码</th>
+                                                <th>名称</th>
+                                                <th>行业</th>
+                                                <th>综合评分</th>
+                                                <th>估值</th>
+                                                <th>质量</th>
+                                                <th>成长</th>
+                                                <th>动量</th>
+                                                <th>PE</th>
+                                                <th>ROE</th>
+                                                <th>毛利率</th>
+                                                <th>营收增速</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="fundamental-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div style="width: 260px; flex-shrink: 0;">
+                                <div class="etf-factor-weights" id="fundamental-summary">
+                                    <h4 style="color: #667eea; margin-bottom: 10px;">推荐摘要</h4>
+                                    <div id="fundamental-summary-content" style="font-size: 0.85em; color: #666;">请先加载数据...</div>
+                                </div>
+                                <div class="etf-factor-weights" style="margin-top: 15px;">
+                                    <h4 style="color: #667eea; margin-bottom: 10px;">因子权重配置</h4>
+                                    <div id="fundamental-weights-content"></div>
+                                </div>
+                                <div class="etf-factor-weights" style="margin-top: 15px;">
+                                    <h4 style="color: #667eea; margin-bottom: 10px;">评分规则</h4>
+                                    <div style="font-size: 0.85em; line-height: 1.8;">
+                                        <div style="margin-bottom:6px;"><strong>估值</strong> <span style="color:#888;">25%</span><br><span style="font-size:0.85em;color:#aaa;">PE/PB/PS 行业中性百分位</span></div>
+                                        <div style="margin-bottom:6px;"><strong>质量</strong> <span style="color:#888;">35%</span><br><span style="font-size:0.85em;color:#aaa;">ROE/毛利率/负债率 行业中性百分位</span></div>
+                                        <div style="margin-bottom:6px;"><strong>成长</strong> <span style="color:#888;">25%</span><br><span style="font-size:0.85em;color:#aaa;">营收/利润 YoY 增长行业中性百分位</span></div>
+                                        <div style="margin-bottom:6px;"><strong>动量</strong> <span style="color:#888;">15%</span><br><span style="font-size:0.85em;color:#aaa;">60日涨跌幅截面百分位</span></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -3346,41 +3388,88 @@
         async function loadFactorSnapshot(dateStr) {
             try {
                 var url = '/api/factors/snapshot';
-                if (dateStr) {
-                    url += '?date=' + encodeURIComponent(dateStr);
-                }
+                if (dateStr) url += '?date=' + encodeURIComponent(dateStr);
+
+                // 显示 loading
+                $('#fundamental-loading').show();
+                $('#fundamental-error').hide();
+                $('#fundamental-table').hide();
+                $('#fundamental-stat-cards').hide();
+
                 const resp = await fetch(url);
                 const data = await resp.json();
-                if (!data.data) return;
 
-                const tbody = $('#indicator-tbody');
+                $('#fundamental-loading').hide();
+
+                if (!data.data || data.data.length === 0) {
+                    $('#fundamental-error').text('暂无因子数据，请选择其他日期').show();
+                    return;
+                }
+
+                // 更新数据日期
+                var dateLabel = dateStr ? dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '--';
+                $('#fundamental-data-date').text('数据日期：' + dateLabel);
+
+                // 更新统计卡片
+                var count = data.data.length;
+                var sumFinal = 0, sumVal = 0, sumQual = 0, sumMom = 0;
+                data.data.forEach(function(row) {
+                    if (row.final_score != null) sumFinal += parseFloat(row.final_score);
+                    if (row.valuation_score != null) sumVal += parseFloat(row.valuation_score);
+                    if (row.quality_score != null) sumQual += parseFloat(row.quality_score);
+                    if (row.momentum_score != null) sumMom += parseFloat(row.momentum_score);
+                });
+                var n = data.data.length;
+                $('#fundamental-total').text(count);
+                $('#fundamental-avg-score').text((sumFinal / n).toFixed(1));
+                $('#fundamental-avg-valuation').text((sumVal / n).toFixed(1));
+                $('#fundamental-avg-quality').text((sumQual / n).toFixed(1));
+                $('#fundamental-avg-momentum').text((sumMom / n).toFixed(1));
+                $('#fundamental-stat-cards').show();
+
+                // 更新推荐摘要
+                var summaryEl = document.getElementById('fundamental-summary-content');
+                summaryEl.innerHTML = '<div style="margin-bottom:8px;"><strong>数据日期</strong><br>' + dateLabel + '</div>'
+                    + '<div style="margin-bottom:8px;"><strong>股票池容量</strong><br>' + count + ' 只</div>'
+                    + '<div style="margin-bottom:8px;"><strong>综合评分均值</strong><br>' + (sumFinal / n).toFixed(1) + '</div>';
+
+                // 更新因子权重
+                if (typeof renderFundamentalWeights === 'function') {
+                    renderFundamentalWeights();
+                }
+
+                // 渲染表格
+                const tbody = $('#fundamental-tbody');
                 tbody.empty();
+                $('#fundamental-table').show();
+                $('#fundamental-ranking-hint').text('Top ' + count);
 
                 data.data.forEach(function(row, i) {
-                    var final = row.final_score !== null && row.final_score !== undefined
-                        ? parseFloat(row.final_score).toFixed(1) : '-';
+                    var final = row.final_score !== null ? parseFloat(row.final_score).toFixed(1) : '-';
                     var val = row.valuation_score !== null ? parseFloat(row.valuation_score).toFixed(1) : '-';
                     var qual = row.quality_score !== null ? parseFloat(row.quality_score).toFixed(1) : '-';
                     var gro = row.growth_score !== null ? parseFloat(row.growth_score).toFixed(1) : '-';
                     var mom = row.momentum_score !== null ? parseFloat(row.momentum_score).toFixed(1) : '-';
                     var pe = row.pe_ttm !== null ? parseFloat(row.pe_ttm).toFixed(2) : '-';
-                    var roe = row.roe !== null ? parseFloat(row.roe * 100).toFixed(1) : '-';
-                    var gm = row.gross_margin !== null ? parseFloat(row.gross_margin * 100).toFixed(1) : '-';
-                    var rev = row.revenue_yoy_growth !== null ? parseFloat(row.revenue_yoy_growth * 100).toFixed(1) : '-';
+                    var roe = row.roe !== null ? (parseFloat(row.roe) * 100).toFixed(1) + '%' : '-';
+                    var gm = row.gross_margin !== null ? (parseFloat(row.gross_margin) * 100).toFixed(1) + '%' : '-';
+                    var rev = row.revenue_yoy_growth !== null ? (parseFloat(row.revenue_yoy_growth) * 100).toFixed(1) + '%' : '-';
 
                     var scoreNum = parseFloat(final);
-                    var scoreColor = 'text-muted';
+                    var scoreColor = '';
                     if (!isNaN(scoreNum)) {
-                        scoreColor = scoreNum >= 70 ? 'text-success' : scoreNum >= 40 ? 'text-warning' : 'text-danger';
+                        scoreColor = scoreNum >= 70 ? 'color:#27ae60;font-weight:bold;'
+                            : scoreNum >= 40 ? 'color:#f39c12;font-weight:bold;'
+                            : 'color:#e74c3c;font-weight:bold;';
                     }
 
                     tbody.append(
                         '<tr style="cursor:pointer" onclick="$(\'#chart-symbol\').val(\'' + row.vt_symbol + '\'); loadFactorHistory();">' +
-                        '<td>' + (i + 1) + '</td>' +
+                        '<td class="rank-cell">' + (i + 1) + '</td>' +
                         '<td><strong>' + row.vt_symbol + '</strong></td>' +
                         '<td>' + (row.name || '-') + '</td>' +
                         '<td style="font-size:0.85em;color:#888;">' + (row.industry || '-') + '</td>' +
-                        '<td class="' + scoreColor + ' fw-bold">' + final + '</td>' +
+                        '<td style="' + scoreColor + '">' + final + '</td>' +
                         '<td>' + val + '</td>' +
                         '<td>' + qual + '</td>' +
                         '<td>' + gro + '</td>' +
@@ -3393,6 +3482,8 @@
                     );
                 });
             } catch (err) {
+                $('#fundamental-loading').hide();
+                $('#fundamental-error').text('加载因子数据失败: ' + err.message).show();
                 console.error('加载因子快照失败:', err);
             }
         }
@@ -3463,14 +3554,21 @@
             }
         }
 
-        // Hook into existing showPage function
-        const _originalShowPage = showPage;
-        showPage = function(pageName) {
-            _originalShowPage(pageName);
-            if (pageName === 'indicators') {
-                loadFactorDates();
+        // ==================== 综合评分 - 权重渲染 ====================
+
+        var FUNDAMENTAL_WEIGHTS = {valuation: 0.25, quality: 0.35, growth: 0.25, momentum: 0.15};
+
+        function renderFundamentalWeights() {
+            var el = document.getElementById("fundamental-weights-content");
+            if (!el) return;
+            var labels = {valuation: "估值", quality: "质量", growth: "成长", momentum: "动量"};
+            var html = "";
+            for (var k in FUNDAMENTAL_WEIGHTS) {
+                var pct = (FUNDAMENTAL_WEIGHTS[k] * 100).toFixed(0);
+                html += '<div class="etf-weight-row"><span class="label">' + (labels[k] || k) + '</span><div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div><span class="value">' + pct + '%</span></div>';
             }
-        };
+            el.innerHTML = html;
+        }
 
         // ==================== ETF 推荐功能 ====================
         var etfAllCandidates = [];
