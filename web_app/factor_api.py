@@ -155,8 +155,9 @@ def _assemble_full_snapshot(
     if daily.is_empty():
         return None
 
-    # 加载季频因子
-    quarterly = storage.get_latest_quarterly_snapshot(symbols)
+    # 加载季频因子（PIT 约束: 只取截至快照日期已公告的数据）
+    daily_date = daily["trade_date"].max() if "trade_date" in daily.columns else None
+    quarterly = storage.get_latest_quarterly_snapshot(symbols, as_of_date=daily_date)
     if not quarterly.is_empty():
         daily = daily.join(quarterly, on="vt_symbol", how="left")
 

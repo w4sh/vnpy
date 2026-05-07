@@ -208,6 +208,7 @@ class CandidateStock(Base):
     symbol = Column(String(20), nullable=False, index=True)  # 股票代码
     name = Column(String(50))  # 股票名称
     score = Column(Numeric(8, 2), nullable=False)  # 过渡期：= combined_score
+    fundamental_score = Column(Numeric(8, 2))  # 基本面四维综合评分 (0-100)
     technical_score = Column(Numeric(8, 2))  # 技术因子综合分 (0-100)
     performance_score = Column(Numeric(8, 2))  # 回测绩效综合分 (0-100)
     combined_score = Column(Numeric(8, 2))  # 综合评分 = tech×0.5 + perf×0.5
@@ -272,15 +273,11 @@ class EtfCandidate(Base):
     expense_ratio = Column(Numeric(6, 4))  # 综合费率（管理费+托管费 %）
     avg_daily_volume = Column(Numeric(15, 2))  # 日均成交额
     premium_discount = Column(Numeric(8, 4))  # 折溢价率（正=溢价）
-    tracking_error = Column(Numeric(8, 4))  # 跟踪误差
-    dividend_yield = Column(Numeric(8, 4))  # 股息率
     # 因子评分 (0-100)
     liquidity_score = Column(Numeric(8, 2))
     size_score = Column(Numeric(8, 2))
     cost_score = Column(Numeric(8, 2))
-    tracking_score = Column(Numeric(8, 2))
     premium_score = Column(Numeric(8, 2))
-    yield_score = Column(Numeric(8, 2))
     momentum_score = Column(Numeric(8, 2))
     volatility_score = Column(Numeric(8, 2))
     technical_score = Column(Numeric(8, 2))  # 技术因子综合分
@@ -325,6 +322,43 @@ class EtfPortfolioRecommendation(Base):
 
 
 # 数据库初始化和辅助函数
+
+
+def _migrate_etf_candidates(engine) -> None:
+    """迁移 etf_candidates 表 — 删除废弃列
+
+    旧版表中可能存在 tracking_error, dividend_yield, tracking_score,
+    yield_score 四个列，新版 ORM 模型已移除。SQLite 3.35+ 支持 DROP COLUMN。
+    """
+    import logging
+
+    mig_logger = logging.getLogger(__name__)
+
+    old_columns = [
+        "tracking_error",
+        "dividend_yield",
+        "tracking_score",
+        "yield_score",
+    ]
+
+    try:
+        with engine.connect() as conn:
+            # 查询表中已有的列
+            result = conn.exec_driver_sql("PRAGMA table_info('etf_candidates')")
+            existing_cols = {row[1] for row in result}
+
+            for col in old_columns:
+                if col in existing_cols:
+                    conn.exec_driver_sql(
+                        f"ALTER TABLE etf_candidates DROP COLUMN {col}"
+                    )
+                    mig_logger.info("已删除废弃列: etf_candidates.%s", col)
+            conn.commit()
+    except Exception:
+        # 表不存在或非 SQLite 引擎 — 忽略
+        pass
+
+
 def init_database(db_url: str = "sqlite:///position_management.db") -> Session:
     """初始化数据库"""
     from sqlalchemy import create_engine
@@ -344,6 +378,7 @@ def get_db_session(db_url="sqlite:///position_management.db"):
 
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)  # 确保所有表都已创建
+    _migrate_etf_candidates(engine)  # 迁移废弃列
     Session = sessionmaker(bind=engine)
     return Session()
 

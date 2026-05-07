@@ -17,8 +17,6 @@ class EtfCandidateResult:
     expense_ratio: float = 0.0
     avg_daily_volume: float = 0.0
     premium_discount: float = 0.0
-    tracking_error: float = 0.0
-    dividend_yield: float = 0.0
     raw_momentum: float = 0.0
     raw_volatility: float = 0.0
 
@@ -26,9 +24,7 @@ class EtfCandidateResult:
     liquidity_score: float = 0.0
     size_score: float = 0.0
     cost_score: float = 0.0
-    tracking_score: float = 0.0
     premium_score: float = 0.0
-    yield_score: float = 0.0
     momentum_score: float = 0.0
     volatility_score: float = 0.0
 
@@ -53,14 +49,10 @@ class EtfCandidateResult:
             "expense_ratio": self.expense_ratio,
             "avg_daily_volume": self.avg_daily_volume,
             "premium_discount": self.premium_discount,
-            "tracking_error": self.tracking_error,
-            "dividend_yield": self.dividend_yield,
             "liquidity_score": self.liquidity_score,
             "size_score": self.size_score,
             "cost_score": self.cost_score,
-            "tracking_score": self.tracking_score,
             "premium_score": self.premium_score,
-            "yield_score": self.yield_score,
             "momentum_score": self.momentum_score,
             "volatility_score": self.volatility_score,
             "technical_score": self.technical_score,

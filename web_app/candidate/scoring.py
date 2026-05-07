@@ -26,14 +26,18 @@ logger = logging.getLogger(__name__)
 # 可调整参数
 # ---------------------------------------------------------------------------
 
-TECHNICAL_WEIGHT = 0.5
-PERFORMANCE_WEIGHT = 0.5
+FUNDAMENTAL_WEIGHT = 0.70
+TECHNICAL_WEIGHT = 0.20
+PERFORMANCE_WEIGHT = 0.10
 
 PERF_WEIGHTS = {
-    "sharpe": 0.50,
-    "max_drawdown": 0.30,
-    "total_return": 0.20,
+    "max_drawdown": 0.60,
+    "total_return": 0.40,
 }
+
+# 回退方案：基本面数据缺失时的权重
+FALLBACK_TECHNICAL_WEIGHT = 0.70
+FALLBACK_PERFORMANCE_WEIGHT = 0.30
 
 MIN_RESULTS_FOR_NORMALIZE = 3
 
@@ -88,24 +92,21 @@ def _compute_technical_score(results: list[CandidateResult]) -> None:
 
 
 def _compute_performance_score(results: list[CandidateResult]) -> None:
-    """绩效分：夏普 0.5 + 回撤 0.3 + 总收益 0.2，均做截面百分位归一化"""
+    """绩效分：回撤 0.6 + 总收益 0.4，均做截面百分位归一化"""
     if len(results) < MIN_RESULTS_FOR_NORMALIZE:
         for r in results:
             r.performance_score = 0.0
         return
 
-    sharpe_arr = np.array([r.sharpe_ratio for r in results])
     dd_arr = np.array([r.max_drawdown for r in results])
     ret_arr = np.array([r.total_return for r in results])
 
-    sharpe_rank = cross_sectional_rank(sharpe_arr, higher_is_better=True)
     dd_rank = cross_sectional_rank(dd_arr, higher_is_better=False)
     ret_rank = cross_sectional_rank(ret_arr, higher_is_better=True)
 
     for i, r in enumerate(results):
         r.performance_score = round(
-            float(sharpe_rank[i]) * PERF_WEIGHTS["sharpe"]
-            + float(dd_rank[i]) * PERF_WEIGHTS["max_drawdown"]
+            float(dd_rank[i]) * PERF_WEIGHTS["max_drawdown"]
             + float(ret_rank[i]) * PERF_WEIGHTS["total_return"],
             2,
         )
@@ -117,12 +118,23 @@ def _compute_performance_score(results: list[CandidateResult]) -> None:
 
 
 def _compute_combined_score(results: list[CandidateResult]) -> None:
+    """综合分 = 基本面×0.70 + 技术×0.20 + 绩效×0.10
+    若基本面缺失(fundamental_score=0)，回退到 技术×0.70 + 绩效×0.30
+    """
     for r in results:
-        r.combined_score = round(
-            r.technical_score * TECHNICAL_WEIGHT
-            + r.performance_score * PERFORMANCE_WEIGHT,
-            2,
-        )
+        if r.fundamental_score > 0:
+            r.combined_score = round(
+                r.fundamental_score * FUNDAMENTAL_WEIGHT
+                + r.technical_score * TECHNICAL_WEIGHT
+                + r.performance_score * PERFORMANCE_WEIGHT,
+                2,
+            )
+        else:
+            r.combined_score = round(
+                r.technical_score * FALLBACK_TECHNICAL_WEIGHT
+                + r.performance_score * FALLBACK_PERFORMANCE_WEIGHT,
+                2,
+            )
 
 
 def _assign_ranks(results: list[CandidateResult], top_n: int) -> list[CandidateResult]:
@@ -199,6 +211,7 @@ def save_results_to_db(
                 symbol=r.symbol,
                 name=r.name,
                 score=r.combined_score,
+                fundamental_score=r.fundamental_score,
                 technical_score=r.technical_score,
                 performance_score=r.performance_score,
                 combined_score=r.combined_score,

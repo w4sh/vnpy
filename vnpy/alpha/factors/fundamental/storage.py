@@ -7,6 +7,7 @@
 - 宽表转换: 长表 → AlphaDataset 兼容的宽表格式
 """
 
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,8 @@ from pathlib import Path
 import polars as pl
 
 from vnpy.alpha.factors.base import FactorStorage
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_DATA_DIR = os.path.join(os.path.expanduser("~"), ".vntrader", "factors")
@@ -105,11 +108,23 @@ class FundamentalStorage(FactorStorage):
         df = pl.read_parquet(self.daily_path)
         return df["trade_date"].unique().sort(descending=True).to_list()
 
-    def get_latest_quarterly_snapshot(self, symbols: list[str]) -> pl.DataFrame:
+    def get_latest_quarterly_snapshot(
+        self,
+        symbols: list[str],
+        as_of_date: str | None = None,
+    ) -> pl.DataFrame:
         """获取最新季频因子快照（前值填充到当前）
 
-        对每只股票取最新公告的因子值（基于 pub_date 取最新），
+        对每只股票取截至 as_of_date 已公告的最新因子值，
         pivot 为宽表格式 vt_symbol | roe | gross_margin | debt_to_assets | ...
+
+        PIT 约束:
+         - 通过 pub_date ≤ as_of_date 过滤，确保只使用截至目标日期已公开的数据
+         - 若 as_of_date 未提供，不做 PIT 过滤（取全局最新）
+
+        参数:
+            symbols: 股票代码列表
+            as_of_date: 数据截止日期 YYYYMMDD，默认为 None（不限制）
 
         返回: 若无季频数据则返回空 DataFrame
         """
@@ -120,6 +135,24 @@ class FundamentalStorage(FactorStorage):
         df = df.filter(pl.col("vt_symbol").is_in(symbols))
         if df.is_empty():
             return pl.DataFrame()
+
+        # PIT 约束: 只取截至 as_of_date 已公告的数据
+        if as_of_date is not None:
+            before = len(df)
+            df = df.filter(pl.col("pub_date") <= as_of_date)
+            removed = before - len(df)
+            if removed > 0:
+                logger.debug(
+                    "PIT 过滤: 移除了 %d 条未来公告数据 (as_of_date=%s)",
+                    removed,
+                    as_of_date,
+                )
+            if df.is_empty():
+                logger.warning(
+                    "PIT 过滤后季频数据为空 (as_of_date=%s)，可能该日尚无财报公告",
+                    as_of_date,
+                )
+                return pl.DataFrame()
 
         # 对每组 vt_symbol + factor_name，取 pub_date 最新的行
         latest = df.sort("pub_date", descending=True).unique(

@@ -2,23 +2,23 @@
 
 将每日候选股筛选的 combined_score 映射到持仓操作建议。
 
-评分阈值：
-  - >= 80: STRONG_BUY（持仓中加仓，未持仓则买入）
-  - 60-79: HOLD（维持）
-  - < 60: SELL（减半仓）
-  - 不在候选结果中: SELL（持仓股未进 Top N，建议减仓）
+评分阈值（带滞回）：
+  - >= 80: STRONG_BUY
+  - < 58: SELL（硬阈值）
+  - 58-79: 看前一日操作，若为 SELL 且评分 < 63 → 维持 SELL（滞回）
+  - 其余: HOLD
 
 仓位计算：
   - 已持仓 STRONG_BUY: 加仓当前持仓的 50%
   - SELL: 减仓当前持仓的 50%
-  - 新开仓 BUY: 从可投资金中按评分比例分配
+  - 新开仓 BUY: 从可投资金中按评分比例分配（单一行业 ≤ 3 只）
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SCORE_STRONG_BUY = 80
-SCORE_SELL = 60
+SCORE_SELL = 58  # 原 60，下调 2 点减少假信号
+SCORE_BUY_HYSTERESIS = 63  # 从 SELL 回升到 HOLD 需 ≥ 63
 TOP_N_NON_HELD = 10
+MAX_PER_INDUSTRY = 3  # 单一行业最多推荐 N 只
 CASH_RESERVE_RATIO = 0.10
 POSITION_ADJUST_RATIO = 0.50
 DEFAULT_CAPITAL = 1_000_000  # 当没有策略时使用默认总资金
@@ -60,16 +62,44 @@ class RecommendationResult:
 # ---------------------------------------------------------------------------
 
 
-def _classify_action(score: float | None, is_held: bool) -> str:
-    """根据评分和持仓状态判定操作类型"""
+def _get_industry_for_symbol(symbol: str) -> str:
+    """获取申万一级行业分类
+
+    从行业数据 DataFrame 中查询。读取一次后缓存。
+    """
+    if not hasattr(_get_industry_for_symbol, "_cache"):
+        try:
+            from vnpy.alpha.factors.industry import get_industry_df
+
+            df = get_industry_df()
+            _get_industry_for_symbol._cache = {}
+            for row in df.to_dicts():
+                vt = row.get("vt_symbol", "")
+                industry = row.get("industry", "")
+                if vt and industry:
+                    # 格式化匹配: xx.SSE → xx.SH
+                    simple = vt.replace(".SSE", ".SH").replace(".SZSE", ".SZ")
+                    _get_industry_for_symbol._cache[simple] = industry
+                    _get_industry_for_symbol._cache[vt] = industry
+        except Exception:
+            _get_industry_for_symbol._cache = {}
+    return _get_industry_for_symbol._cache.get(symbol, "")
+
+
+def _classify_action(
+    score: float | None, is_held: bool, prev_action: str | None = None
+) -> str:
+    """根据评分、持仓状态和前一日操作判定操作类型（带滞回）"""
     if score is None:
-        # 持仓股票不在候选 Top N 中 → 评分很差的迹象
         if is_held:
             return "SELL"
         return "HOLD"
     if score >= SCORE_STRONG_BUY:
         return "STRONG_BUY"
     if score < SCORE_SELL:
+        return "SELL"
+    # 滞回: 上次为 SELL 且新分 < SCORE_BUY_HYSTERESIS → 维持 SELL
+    if prev_action == "SELL" and score < SCORE_BUY_HYSTERESIS:
         return "SELL"
     return "HOLD"
 
@@ -86,6 +116,39 @@ def _build_reason(action: str, score: float | None, name: str) -> str:
         f"综合评分{score:.1f}，处于持有区间"
         f"({SCORE_SELL}-{SCORE_STRONG_BUY})，建议维持当前仓位"
     )
+
+
+def _get_prev_recommendations(session: Any, current_date: date) -> dict[str, str]:
+    """获取前一个交易日的推荐类型，用于滞回判断
+
+    首次运行时 PortfolioRecommendation 表可能为空或不存在，安全降级返回 {}。
+    """
+    from web_app.models import PortfolioRecommendation
+
+    try:
+        prev_date = current_date - timedelta(days=5)
+        for d in range(1, 6):
+            check_date = current_date - timedelta(days=d)
+            rec = (
+                session.query(PortfolioRecommendation.recommendation_date)
+                .filter(PortfolioRecommendation.recommendation_date == check_date)
+                .first()
+            )
+            if rec:
+                prev_date = check_date
+                break
+        else:
+            return {}
+
+        prev_recs = (
+            session.query(PortfolioRecommendation)
+            .filter(PortfolioRecommendation.recommendation_date == prev_date)
+            .all()
+        )
+        return {r.symbol: r.recommendation_type for r in prev_recs}
+    except Exception:
+        logger.debug("无法获取前一日推荐（首次运行或表不存在），滞回降级为纯阈值判断")
+        return {}
 
 
 def _calculate_sizing(
@@ -201,13 +264,18 @@ def generate_recommendations(
     )
     total_market_value = sum(float(p.market_value or 0) for p in held_positions)
 
+    # 前一日推荐（滞回判断用）
+    prev_actions = _get_prev_recommendations(session, screening_date)
+
     results: list[RecommendationResult] = []
 
     # 1. 处理持仓股票
     for pos in held_positions:
         candidate = candidates.get(pos.symbol)
         score = float(candidate.combined_score) if candidate else None
-        action = _classify_action(score, is_held=True)
+        action = _classify_action(
+            score, is_held=True, prev_action=prev_actions.get(pos.symbol)
+        )
 
         results.append(
             RecommendationResult(
@@ -230,17 +298,27 @@ def generate_recommendations(
             )
         )
 
-    # 2. 未持仓 Top N 买入推荐
-    non_held = [
-        c
-        for c in sorted(
-            candidates.values(),
-            key=lambda x: float(x.combined_score or 0),
-            reverse=True,
-        )
-        if c.symbol not in held_symbols
-    ]
-    for c in non_held[:TOP_N_NON_HELD]:
+    # 2. 未持仓 Top N 买入推荐（带行业分散约束）
+    non_held_sorted = sorted(
+        [c for c in candidates.values() if c.symbol not in held_symbols],
+        key=lambda x: float(x.combined_score or 0),
+        reverse=True,
+    )
+
+    selected_industries: dict[str, int] = {}
+    selected_non_held: list[CandidateStock] = []
+    for c in non_held_sorted:
+        if len(selected_non_held) >= TOP_N_NON_HELD:
+            break
+        # 行业分散约束
+        industry = _get_industry_for_symbol(c.symbol)
+        if industry and selected_industries.get(industry, 0) >= MAX_PER_INDUSTRY:
+            continue
+        selected_non_held.append(c)
+        if industry:
+            selected_industries[industry] = selected_industries.get(industry, 0) + 1
+
+    for c in selected_non_held:
         score = float(c.combined_score or 0)
         name = c.name or c.symbol
         results.append(

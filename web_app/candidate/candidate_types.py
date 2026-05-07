@@ -39,6 +39,9 @@ class CandidateResult:
     max_drawdown: float = 0.0
     sharpe_ratio: float = 0.0
 
+    # 基本面四维综合评分 (100-0, screening_engine.py 注入)
+    fundamental_score: float = 0.0
+
     # 二级分数 (scoring.py 填充)
     technical_score: float = 0.0
     performance_score: float = 0.0

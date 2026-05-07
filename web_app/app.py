@@ -489,6 +489,9 @@ def get_latest_candidates():
                     "name": c.name or get_stock_name(c.symbol),
                     "is_held": c.symbol in held_symbols,
                     "score": float(c.score) if c.score else 0,
+                    "fundamental_score": float(c.fundamental_score)
+                    if c.fundamental_score
+                    else 0,
                     "technical_score": float(c.technical_score)
                     if c.technical_score
                     else 0,
@@ -559,7 +562,10 @@ def get_candidates_history():
         session = get_db_session()
 
         # 获取当前持仓，用于标记已持有股票
-        held_symbols = {p.symbol for p in session.query(Position.symbol).filter(Position.status == "holding")}
+        held_symbols = {
+            p.symbol
+            for p in session.query(Position.symbol).filter(Position.status == "holding")
+        }
 
         query = session.query(CandidateStock).order_by(
             CandidateStock.combined_score.desc(),
@@ -588,6 +594,9 @@ def get_candidates_history():
                     "name": c.name or get_stock_name(c.symbol),
                     "is_held": c.symbol in held_symbols,
                     "score": float(c.score) if c.score else 0,
+                    "fundamental_score": float(c.fundamental_score)
+                    if c.fundamental_score
+                    else 0,
                     "technical_score": float(c.technical_score)
                     if c.technical_score
                     else 0,

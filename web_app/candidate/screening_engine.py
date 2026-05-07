@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
+
+import polars as pl
 
 from web_app.candidate.candidate_types import CandidateResult
 from web_app.candidate.engine import (
@@ -72,6 +74,19 @@ def run_screening(
         if result:
             results.append(result)
 
+    # --- 2.5 加载基本面评分 ---
+    if results:
+        try:
+            fundamental_scores = _load_fundamental_scores([r.symbol for r in results])
+            for r in results:
+                r.fundamental_score = fundamental_scores.get(r.symbol, 0.0)
+            scored_count = sum(1 for r in results if r.fundamental_score > 0)
+            logger.info(
+                "基本面评分加载: %d / %d 只有效评分", scored_count, len(results)
+            )
+        except Exception as e:
+            logger.warning("基本面评分加载失败（降级运行）: %s", e)
+
     # --- 3. 评分 + 排名 ---
     top = score_and_rank(results, top_n=top_n)
 
@@ -90,6 +105,7 @@ def _results_to_dicts(candidates: list[CandidateResult]) -> list[dict]:
             "symbol": r.symbol,
             "name": r.name,
             "score": r.combined_score,
+            "fundamental_score": r.fundamental_score,
             "technical_score": r.technical_score,
             "performance_score": r.performance_score,
             "combined_score": r.combined_score,
@@ -105,6 +121,93 @@ def _results_to_dicts(candidates: list[CandidateResult]) -> list[dict]:
         }
         for r in candidates
     ]
+
+
+def _load_fundamental_scores(symbols: list[str]) -> dict[str, float]:
+    """从基本面评分系统获取每只股票的 final_score
+
+    加载日频+季频因子快照，计算多维评分，返回 {symbol: final_score} 映射。
+    symbol 格式为 000001.SZ / 600036.SH（候选池内的简写格式）。
+    """
+    try:
+        from vnpy.alpha.factors.fundamental.storage import FundamentalStorage
+        from vnpy.alpha.factors.scoring import compute_final_score_only
+
+        storage = FundamentalStorage()
+
+        # 构建完整 vt_symbol 列表（基本面系统用 xx.SSE/xx.SZSE 格式）
+        vt_symbols = []
+        for s in symbols:
+            # 候选池格式: 600036.SH → 600036.SSE
+            parts = s.split(".")
+            if len(parts) == 2:
+                suffix = "SSE" if parts[1] in ("SH", "SSE") else "SZSE"
+                vt_symbols.append(f"{parts[0]}.{suffix}")
+            else:
+                vt_symbols.append(s)
+
+        # 1. 加载因子快照（日频 + 季频 + 动量）
+        end = datetime.now()
+        start = end - timedelta(days=120)
+
+        daily = storage.load(vt_symbols, start, end)
+        if daily.is_empty() or "close" not in daily.columns:
+            logger.debug("日频因子数据不足，跳过基本面评分")
+            return {}
+
+        # 2. 取最新交易日快照
+        latest_date = daily["trade_date"].max()
+        snapshot = daily.filter(pl.col("trade_date") == latest_date)
+
+        # 3. 合并季频因子（PIT 约束: 只取截至最新交易日已公告的数据）
+        quarterly = storage.get_latest_quarterly_snapshot(
+            vt_symbols, as_of_date=latest_date
+        )
+        if not quarterly.is_empty():
+            snapshot = snapshot.join(quarterly, on="vt_symbol", how="left")
+
+        # 4. 计算 60 日动量
+        hist_sorted = daily.sort(["vt_symbol", "trade_date"])
+        latest_close = hist_sorted.group_by("vt_symbol").agg(
+            [
+                pl.col("close").drop_nulls().last().alias("_latest_close"),
+                pl.col("close").drop_nulls().first().alias("_past_close"),
+            ]
+        )
+        momentum = latest_close.with_columns(
+            pl.when(pl.col("_past_close") > 0)
+            .then(pl.col("_latest_close") / pl.col("_past_close") - 1.0)
+            .otherwise(pl.lit(None))
+            .alias("momentum_60d")
+        ).select(["vt_symbol", "momentum_60d"])
+        snapshot = snapshot.join(momentum, on="vt_symbol", how="left")
+
+        # 5. 计算多维评分
+        scored = compute_final_score_only(snapshot)
+        if scored.is_empty():
+            return {}
+
+        # 6. 格式转换: vt_symbol → 候选池简写格式
+        result: dict[str, float] = {}
+        for row in scored.to_dicts():
+            vt = row.get("vt_symbol", "")
+            score = row.get("final_score", 0)
+            if not vt or score is None:
+                continue
+            # xx.SSE → xx.SH
+            simple = vt.replace(".SSE", ".SH").replace(".SZSE", ".SZ")
+            result[simple] = round(float(score), 2)
+
+        return result
+    except ImportError as e:
+        logger.warning("因子评分模块未安装，跳过基本面评分: %s", e)
+        return {}
+    except FileNotFoundError as e:
+        logger.info("基本面 Parquet 文件尚未生成，跳过基本面评分: %s", e)
+        return {}
+    except Exception as e:
+        logger.warning("基本面评分计算异常: %s", e)
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +237,7 @@ def _save_daily_results(results: list[dict]) -> None:
         CandidateResult(
             symbol=r["symbol"],
             name=r["name"],
+            fundamental_score=r.get("fundamental_score", 0.0),
             momentum_score=r["momentum_score"],
             trend_score=r["trend_score"],
             volume_score=r["volume_score"],

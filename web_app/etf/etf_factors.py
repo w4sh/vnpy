@@ -1,14 +1,12 @@
 """ETF 因子计算
 
-定义 ETF 专属的 8 个评分因子，与个股的 4 动量因子体系独立。
+定义 ETF 专属的 6 个评分因子，与个股的 4 动量因子体系独立。
 
 因子列表：
-  - liquidity:    近20日平均成交额 (log)
+  - liquidity:    近20日平均成交额 (log变换)
   - size:         基金规模 (AUM, 亿)
   - cost:         综合费率 = -(管理费+托管费)
-  - tracking:     跟踪误差（近期收益 vs 基准）
   - premium:      -|折溢价率|
-  - yield:        股息率
   - momentum:     加权 5/10/20 日收益率
   - volatility:   20 日年化波动率
 """
@@ -89,7 +87,7 @@ def score_etf(data: dict) -> EtfCandidateResult | None:
         data: 包含 ETF 基础信息 + 日线行情 + NAV 的字典
               - ts_code, name, fund_size, expense_ratio    (基础信息)
               - close[], dates[], amount[]                  (日线行情)
-              - premium_discount, dividend_yield            (当日标量)
+              - premium_discount                            (当日标量)
 
     返回:
         EtfCandidateResult 或 None（数据不足时）
@@ -110,10 +108,9 @@ def score_etf(data: dict) -> EtfCandidateResult | None:
 
     # 流动性 = 近 20 日平均成交额（log 变换压缩量级差异）
     avg_volume_20 = float(np.mean(amount_arr[-20:])) if len(amount_arr) >= 20 else 1
-    avg_daily_volume = avg_volume_20
+    avg_daily_volume = math.log(max(avg_volume_20, 1.0))
 
     premium_discount = float(data.get("premium_discount", 0) or 0)
-    dividend_yield = float(data.get("dividend_yield", 0) or 0)
 
     momentum_raw = _calc_momentum(close_arr)
     volatility_raw = _calc_volatility(close_arr)
@@ -130,7 +127,6 @@ def score_etf(data: dict) -> EtfCandidateResult | None:
         expense_ratio=expense_ratio,
         avg_daily_volume=avg_daily_volume,
         premium_discount=premium_discount,
-        dividend_yield=dividend_yield,
         raw_momentum=momentum_raw,
         raw_volatility=volatility_raw,
         current_price=float(close_arr[-1]) if len(close_arr) > 0 else 0,
