@@ -177,6 +177,15 @@
             font-weight: bold;
             transition: all 0.3s;
             margin-right: 10px;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
             margin-bottom: 10px;
         }
 
@@ -403,6 +412,13 @@
             color: #333;
         }
 
+        /* 信号 Badge 样式 */
+        .badge-buy { background:#28a745; color:white; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+        .badge-sell { background:#dc3545; color:white; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+        .badge-hold { background:#ffc107; color:#333; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+        .badge-holding { background:#28a745; color:white; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; }
+        .badge-wait { background:#6c757d; color:white; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+
         .results-table {
             width: 100%;
             border-collapse: collapse;
@@ -449,7 +465,151 @@
             background: #27ae60;
             color: white;
         }
+
+        /* ========== ETF 样式 ========== */
+        .etf-stat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .etf-stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 16px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+        .etf-stat-card .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 6px 0;
+        }
+        .etf-stat-card .label {
+            font-size: 0.82em;
+            opacity: 0.9;
+        }
+        .etf-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+        .etf-table th {
+            background: #f8f9fa;
+            color: #667eea;
+            font-weight: bold;
+            padding: 8px;
+            text-align: left;
+            border-bottom: 2px solid #667eea;
+            white-space: nowrap;
+        }
+        .etf-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .etf-table tr:hover {
+            background: #f8f9fa;
+        }
+        .etf-table .rank-cell {
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+        }
+        .etf-factor-weights {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .badge-strong-buy {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: bold;
+            color: white;
+            background: #27ae60;
+        }
+        .badge-buy {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: bold;
+            color: white;
+            background: #00bcd4;
+        }
+        .badge-hold {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: bold;
+            color: white;
+            background: #f39c12;
+        }
+        .badge-sell {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: bold;
+            color: white;
+            background: #e74c3c;
+        }
+        .etf-weight-row {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .etf-weight-row .label {
+            width: 70px;
+            font-size: 0.82em;
+            color: #555;
+        }
+        .etf-weight-row .bar-bg {
+            flex: 1;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            margin: 0 8px;
+            overflow: hidden;
+        }
+        .etf-weight-row .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 5px;
+        }
+        .etf-weight-row .value {
+            width: 35px;
+            text-align: right;
+            font-size: 0.82em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        /* Flatpickr 弹出式日历样式 */
+        .flatpickr-calendar {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            border-radius: 10px;
+            border: none;
+            margin-top: 4px;
+        }
+        .flatpickr-months .flatpickr-month { background: transparent; }
+        .flatpickr-current-month .flatpickr-monthDropdown-months { font-weight: 600; }
+        .flatpickr-day.today { border-color: #667eea !important; }
+        .flatpickr-day.selected,
+        .flatpickr-day.selected:hover {
+            background: #667eea !important;
+            border-color: #667eea !important;
+        }
+        .flatpickr-day:not(.flatpickr-disabled):hover {
+            background: #eef0ff !important;
+            color: #667eea !important;
+        }
+        .flatpickr-day.flatpickr-disabled { color: #ddd !important; }
     </style>
+    <!-- Flatpickr 日期选择器 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="container">
@@ -465,7 +625,7 @@
             <button class="nav-btn" onclick="showPage('position')">持仓管理</button>
             <button class="nav-btn" onclick="showPage('candidate')">股票候选</button>
             <button class="nav-btn" onclick="showPage('indicators')">前瞻指标</button>
-            <button class="nav-btn" onclick="location.href='/etf_overview'">指数推荐</button>
+            <button class="nav-btn" onclick="showPage('etf')">指数推荐</button>
         </div>
 
         <div class="content">
@@ -705,6 +865,91 @@
                             <!-- 策略卡片将由JavaScript动态生成 -->
                         </div>
                     </div>
+
+                    <!-- 策略分析面板 -->
+                    <div id="strategy-analysis-panel" style="display: none; margin-top: 20px;">
+                        <div class="section">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3 id="analysis-strategy-name" style="margin:0;">📊 策略分析报告</h3>
+                                <div>
+                                    <button class="btn btn-secondary" onclick="refreshStrategyAnalysis()" style="margin-right:8px;">
+                                        🔄 刷新信号
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="showEditStrategyModal()">⚙️ 编辑策略</button>
+                                </div>
+                            </div>
+
+                            <!-- 无关联回测策略提示 -->
+                            <div id="analysis-no-strategy" style="display: none; text-align: center; padding: 30px; color: #999;">
+                                该策略未关联回测策略。请点击编辑按钮关联一个回测策略以获取分析信号。
+                            </div>
+
+                            <!-- 策略概览卡片 -->
+                            <div id="analysis-summary" style="display: none;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                                    <div class="stat-card">
+                                        <div class="value" id="analysis-pos-count">-</div>
+                                        <div class="label">持仓数量</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="value" id="analysis-total-value">-</div>
+                                        <div class="label">总市值</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="value" id="analysis-total-profit">-</div>
+                                        <div class="label">总盈亏</div>
+                                    </div>
+                                    <div class="stat-card" style="background: #d4edda;">
+                                        <div class="value" id="analysis-buy-count" style="color:#28a745;">-</div>
+                                        <div class="label">买入信号</div>
+                                    </div>
+                                    <div class="stat-card" style="background: #f8d7da;">
+                                        <div class="value" id="analysis-sell-count" style="color:#dc3545;">-</div>
+                                        <div class="label">卖出信号</div>
+                                    </div>
+                                    <div class="stat-card" style="background: #fff3cd;">
+                                        <div class="value" id="analysis-hold-count" style="color:#856404;">-</div>
+                                        <div class="label">持有/观望</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 持仓信号矩阵表格 -->
+                            <div id="analysis-signals" style="display: none;">
+                                <h4 style="margin-bottom: 10px;">持仓信号矩阵</h4>
+                                <div style="overflow-x: auto;">
+                                    <table class="results-table" style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr style="background: #f8f9fa;">
+                                                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e0e0e0;">股票</th>
+                                                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e0e0e0;">名称</th>
+                                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">信号</th>
+                                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">当前价</th>
+                                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">持仓</th>
+                                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">盈亏%</th>
+                                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">指标</th>
+                                                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e0e0e0;">说明</th>
+                                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">建议</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="analysis-signals-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 信号图例 -->
+                            <div style="margin-top: 15px; font-size: 0.85em; color: #666; display: flex; gap: 15px; flex-wrap: wrap;">
+                                <span><span class="badge-buy">买入</span> 建议加仓/建仓</span>
+                                <span><span class="badge-sell">卖出</span> 建议减仓/清仓</span>
+                                <span><span class="badge-hold">持有</span> 建议继续持有</span>
+                                <span style="color: #6c757d; background: #e9ecef; padding: 2px 8px; border-radius: 4px;">观望</span>
+                                <span style="color: #999; font-style: italic;">信号基于关联回测策略的实时数据计算</span>
+                            </div>
+
+                            <div id="analysis-loading" class="loading" style="display:none;">加载分析中...</div>
+                            <div id="analysis-error" class="error" style="display:none;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 交易记录子页面 -->
@@ -806,7 +1051,7 @@
                                 <strong id="candidate-date">-</strong>
                             </div>
                             <div>
-                                <span style="color: #666;">股票池规模：</span>
+                                <span style="color: #666;">推荐个股：</span>
                                 <strong id="candidate-pool-size">-</strong>
                             </div>
                             <div>
@@ -816,11 +1061,14 @@
                         </div>
                     </div>
                     <!-- 历史日期查询 -->
-                    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
-                        <label style="font-weight:bold;color:#555;">查看历史：</label>
-                        <input type="date" id="candidate-history-date" class="form-control" style="width:auto;">
-                        <button class="btn btn-sm" onclick="loadCandidateHistory()">查询</button>
+                    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <strong style="color:#555;">历史数据</strong>
+                        <div class="flatpickr-wrapper" style="display:inline-block; position:relative;">
+                            <input type="text" id="candidate-date-input" readonly style="cursor:pointer; padding:4px 28px 4px 14px; background:#f0f2ff; border:1px solid #667eea; border-radius:6px; color:#667eea; font-size:13px; width:120px; outline:none;" value="选择日期">
+                            <span style="position:absolute; right:8px; top:5px; font-size:10px; color:#667eea; pointer-events:none;">▼</span>
+                        </div>
                         <button class="btn btn-sm btn-secondary" onclick="loadCandidates()">最新</button>
+                        <span id="candidate-dates-hint" style="font-size:12px;color:#999;"></span>
                     </div>
                 </div>
 
@@ -918,24 +1166,105 @@
                         </div>
                     </div>
                 </div>
+	        <!-- 北向资金流向趋势 -->
+	        <div class="row mb-3">
+	            <div class="col-12">
+	                <div class="card">
+	                    <div class="card-header">
+	                        <h5 class="mb-0">北向资金流向趋势 <small class="text-muted" id="flow-score-label"></small></h5>
+	                    </div>
+	                    <div class="card-body">
+	                        <div style="height:300px;">
+	                            <canvas id="flow-chart"></canvas>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+	    </div>
+
+	<!-- ETF 推荐页面 -->
+<div id="etf-page" class="page">
+    <div class="section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3>ETF 指数基金推荐</h3>
+            <div>
+                <span id="etf-data-date" style="color: #666; font-size: 0.9em; margin-right: 15px;">数据日期：--</span>
+                <button class="btn" onclick="refreshEtfData()" style="padding: 8px 20px; font-size: 0.9em;">刷新数据</button>
+                <button class="btn btn-secondary" onclick="runEtfScreening()" style="padding: 8px 20px; font-size: 0.9em;">立即筛选</button>
             </div>
         </div>
+        <p style="color: #666; margin-bottom: 15px;">基于规模、流动性、费率、动量等多因子评分的每日 ETF 配置建议</p>
 
-        <!-- 北向资金流向趋势 -->
-        <div class="row mb-3">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">北向资金流向趋势 <small class="text-muted" id="flow-score-label"></small></h5>
-                    </div>
-                    <div class="card-body">
-                        <div style="height:300px;">
-                            <canvas id="flow-chart"></canvas>
-                        </div>
+        <!-- 统计概览 -->
+        <div class="etf-stat-cards">
+            <div class="etf-stat-card"><div class="label">ETF 总数</div><div class="value" id="etf-total">--</div></div>
+            <div class="etf-stat-card" style="background: linear-gradient(135deg, #27ae60, #2ecc71);"><div class="label">强烈买入</div><div class="value" id="etf-strong-buy">--</div></div>
+            <div class="etf-stat-card" style="background: linear-gradient(135deg, #00bcd4, #4dd0e1);"><div class="label">买入</div><div class="value" id="etf-buy">--</div></div>
+            <div class="etf-stat-card" style="background: linear-gradient(135deg, #f39c12, #f1c40f);"><div class="label">持有</div><div class="value" id="etf-hold">--</div></div>
+            <div class="etf-stat-card" style="background: linear-gradient(135deg, #e74c3c, #c0392b);"><div class="label">卖出</div><div class="value" id="etf-sell">--</div></div>
+        </div>
+
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0;">ETF 评分排名</h4>
+                    <select id="etf-top-n" onchange="changeEtfTopN()" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="30">Top 30</option>
+                        <option value="50">Top 50</option>
+                        <option value="100">Top 100</option>
+                        <option value="0">全部</option>
+                    </select>
+                </div>
+                <div id="etf-loading" class="loading">加载中</div>
+                <div id="etf-error" class="error" style="display: none;"></div>
+                <div style="overflow-x: auto;">
+                    <table class="etf-table" id="etf-data-table" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th>操作建议</th>
+                                <th>综合评分</th>
+                                <th>流动性</th>
+                                <th>规模</th>
+                                <th>费率</th>
+                                <th>动量</th>
+                                <th>波动率</th>
+                                <th>股息率</th>
+                                <th>规模(亿)</th>
+                                <th>费率%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="etf-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="width: 260px; flex-shrink: 0;">
+                <div class="etf-factor-weights" id="etf-summary">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">推荐摘要</h4>
+                    <div id="etf-summary-content" style="font-size: 0.85em; color: #666;">请先加载数据...</div>
+                </div>
+                <div class="etf-factor-weights" style="margin-top: 15px;">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">因子权重配置</h4>
+                    <div id="etf-factor-weights-content"></div>
+                </div>
+                <div class="etf-factor-weights" style="margin-top: 15px;">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">评分规则</h4>
+                    <div style="font-size: 0.85em; line-height: 1.8;">
+                        <div><span class="badge-strong-buy">强烈买入</span> Top 5 且评分 ≥ 80</div>
+                        <div><span class="badge-buy">买入</span> 评分 ≥ 60</div>
+                        <div><span class="badge-hold">持有</span> 其余</div>
+                        <div><span class="badge-sell">卖出</span> 评分 &lt; 60</div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
     </div>
 </div>
 
@@ -1025,9 +1354,51 @@
                         <option value="高">高风险</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>关联回测策略</label>
+                    <select id="strat-class" onchange="onStratClassChange()">
+                        <option value="">不关联</option>
+                    </select>
+                    <small style="color: #999; font-size: 0.85em;" id="strat-class-desc"></small>
+                </div>
+                <div id="strat-params-container" style="display:none; margin-top:10px; padding:10px; background:#f8f9fa; border-radius:6px;">
+                    <label style="font-weight:bold; margin-bottom:8px;">策略参数</label>
+                    <div id="strat-params-fields"></div>
+                </div>
                 <div style="margin-top: 20px;">
                     <button type="submit" class="btn">✅ 保存</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('add-strategy-modal')">❌ 取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑策略模态框 -->
+    <div id="edit-strategy-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ 编辑策略</h3>
+                <button class="close-btn" onclick="closeModal('edit-strategy-modal')">&times;</button>
+            </div>
+            <form id="edit-strategy-form">
+                <div class="form-group">
+                    <label>策略名称</label>
+                    <input type="text" id="edit-strat-name" readonly style="background:#f5f5f5;">
+                </div>
+                <div class="form-group">
+                    <label>关联回测策略</label>
+                    <select id="edit-strat-class" onchange="onEditStratClassChange()">
+                        <option value="">不关联</option>
+                    </select>
+                    <small style="color: #999; font-size: 0.85em;" id="edit-strat-class-desc"></small>
+                </div>
+                <div id="edit-strat-params-container" style="display:none; margin-top:10px; padding:10px; background:#f8f9fa; border-radius:6px;">
+                    <label style="font-weight:bold; margin-bottom:8px;">策略参数</label>
+                    <div id="edit-strat-params-fields"></div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn">✅ 保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-strategy-modal')">❌ 取消</button>
                 </div>
             </form>
         </div>
@@ -1084,8 +1455,10 @@
         </div>
     </div>
 
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 全局变量
         let selectedStrategies = [];
@@ -1104,6 +1477,13 @@
 
             if (pageName === 'candidate') {
                 loadCandidates();
+                loadCandidateDates();
+            }
+            if (pageName === 'position') {
+                showPositionSubPage('overview');
+            }
+            if (pageName === 'etf') {
+                loadEtfData();
             }
         }
 
@@ -1114,7 +1494,8 @@
                 'compare': '策略对比',
                 'position': '持仓管理',
                 'candidate': '股票候选',
-                'indicators': '前瞻指标'
+                'indicators': '前瞻指标',
+                'etf': '指数推荐'
             };
             return labels[pageName] || '';
         }
@@ -1842,20 +2223,334 @@
             let html = '';
             strategies.forEach(strat => {
                 const returnClass = strat.total_return >= 0 ? 'positive' : 'negative';
+                const stratClassText = strat.strategy_class ? getStrategyDisplayName(strat.strategy_class) : '未关联';
                 html += `
-                    <div class="strategy-card">
+                    <div class="strategy-card" onclick="loadStrategyAnalysis(${strat.id})" style="cursor:pointer;">
                         <h4>${strat.name}</h4>
                         <p><strong>初始资金:</strong> ¥${strat.initial_capital.toLocaleString()}</p>
                         <p><strong>当前资金:</strong> ¥${strat.current_capital.toLocaleString()}</p>
                         <p><strong>总收益率:</strong> <span class="${returnClass}">${strat.total_return >= 0 ? '+' : ''}${strat.total_return.toFixed(2)}%</span></p>
                         <p><strong>持仓数量:</strong> ${strat.position_count}</p>
                         <p><strong>风险等级:</strong> ${strat.risk_level}</p>
+                        <p><strong>策略:</strong> ${stratClassText}</p>
+                        <div style="margin-top:10px;">
+                            <span class="badge-buy" style="font-size:11px; padding:4px 12px;">📊 查看分析</span>
+                        </div>
                     </div>
                 `;
             });
 
             grid.html(html);
         }
+
+        function getStrategyDisplayName(strategyClass) {
+            const names = {
+                'DualMaStrategy': '双均线策略',
+                'BollingerBandsStrategy': '布林带策略',
+                'MomentumStrategy': '动量策略',
+                'DualThrustStrategy': '双通道突破策略',
+                'AdvancedBollingerPicker': '高级布林带选股'
+            };
+            return names[strategyClass] || strategyClass;
+        }
+
+        // ============ 加载可选回测策略列表 ============
+
+        var availableStrategies = [];
+
+        function loadAvailableStrategies(selectId, descId) {
+            $.get('/api/strategies/available', function(resp) {
+                if (resp.success) {
+                    availableStrategies = resp.strategies;
+                    var sel = $('#' + selectId);
+                    sel.html('<option value="">不关联</option>');
+                    resp.strategies.forEach(function(s) {
+                        sel.append('<option value="' + s['class'] + '">' + s.name + '</option>');
+                    });
+                }
+            });
+        }
+
+        // 创建策略模态框打开时加载
+        $(function() {
+            loadAvailableStrategies('strat-class', 'strat-class-desc');
+        });
+
+        function onStratClassChange() {
+            renderStratParams('strat-params-container', 'strat-class', 'strat-params-fields', 'strat-class-desc');
+        }
+
+        function onEditStratClassChange() {
+            renderStratParams('edit-strat-params-container', 'edit-strat-class', 'edit-strat-params-fields', 'edit-strat-class-desc');
+        }
+
+        function renderStratParams(containerId, selectId, fieldsId, descId) {
+            var className = $('#' + selectId).val();
+            var container = $('#' + containerId);
+            var fields = $('#' + fieldsId);
+            var desc = $('#' + descId);
+
+            if (!className) {
+                container.hide();
+                fields.html('');
+                desc.text('');
+                return;
+            }
+
+            var strategy = null;
+            for (var i = 0; i < availableStrategies.length; i++) {
+                if (availableStrategies[i]['class'] === className) {
+                    strategy = availableStrategies[i];
+                    break;
+                }
+            }
+
+            if (!strategy) {
+                container.hide();
+                fields.html('');
+                desc.text('');
+                return;
+            }
+
+            desc.text(strategy.description);
+
+            var html = '';
+            strategy.params.forEach(function(p) {
+                var inputId = 'param-' + selectId + '-' + p.key;
+                if (p.type === 'int' || p.type === 'float') {
+                    var step = p.type === 'float' ? '0.1' : '1';
+                    html += '<div style="margin-bottom:8px;">';
+                    html += '<label style="font-size:0.9em; display:block; margin-bottom:3px;">' + p.label + ' (' + p.key + ')</label>';
+                    html += '<input type="number" id="' + inputId + '" value="' + p.default + '" step="' + step + '" min="' + (p.min||0) + '" max="' + (p.max||999) + '" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;">';
+                    html += '</div>';
+                }
+            });
+
+            fields.html(html);
+            container.show();
+        }
+
+        function collectStratParams(fieldsId) {
+            var params = {};
+            $('#' + fieldsId + ' input[type="number"]').each(function() {
+                var key = this.id.replace(/^param-[^-]+-/, '');
+                var val = parseFloat(this.value);
+                if (Number.isInteger(val)) {
+                    params[key] = parseInt(this.value);
+                } else {
+                    params[key] = val;
+                }
+            });
+            return Object.keys(params).length > 0 ? params : null;
+        }
+
+        // ============ 策略分析 ============
+
+        var currentAnalysisStrategyId = null;
+
+        function loadStrategyAnalysis(strategyId) {
+            currentAnalysisStrategyId = strategyId;
+            var panel = $('#strategy-analysis-panel');
+            var loading = $('#analysis-loading');
+            var error = $('#analysis-error');
+
+            panel.show();
+            loading.show();
+            error.hide();
+            $('#analysis-no-strategy').hide();
+            $('#analysis-summary').hide();
+            $('#analysis-signals').hide();
+
+            $.get('/api/strategies/' + strategyId + '/analysis', function(resp) {
+                loading.hide();
+
+                if (!resp.success) {
+                    error.text(resp.error || '加载失败').show();
+                    return;
+                }
+
+                if (!resp.has_analysis) {
+                    $('#analysis-no-strategy').show();
+                    $('#analysis-strategy-name').text('📊 ' + (resp.strategy_summary ? resp.strategy_summary.name : '策略分析'));
+                    return;
+                }
+
+                var summary = resp.strategy_summary || {};
+                var total = resp.total_summary || {};
+                var signals = resp.signals || [];
+
+                $('#analysis-strategy-name').text('📊 ' + summary.name + ' (' + getStrategyDisplayName(summary.strategy_class) + ')');
+                $('#analysis-pos-count').text(total.total_positions || 0);
+                $('#analysis-total-value').text('¥' + (total.total_market_value || 0).toLocaleString());
+                $('#analysis-total-profit').text('¥' + (total.total_profit || 0).toLocaleString());
+                $('#analysis-buy-count').text(total.buy_signals || 0);
+                $('#analysis-sell-count').text(total.sell_signals || 0);
+                $('#analysis-hold-count').text(total.hold_signals || 0);
+
+                $('#analysis-summary').show();
+
+                // 渲染信号表格
+                var tbody = $('#analysis-signals-body');
+                if (signals.length === 0) {
+                    tbody.html('<tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">暂无持仓</td></tr>');
+                } else {
+                    var html = '';
+                    signals.forEach(function(s) {
+                        var indicatorText = '';
+                        if (s.indicator) {
+                            var parts = [];
+                            for (var k in s.indicator) {
+                                parts.push(k + '=' + s.indicator[k]);
+                            }
+                            indicatorText = parts.join(' ');
+                        }
+
+                        var profitClass = (s.profit_loss || 0) >= 0 ? 'positive' : 'negative';
+                        var suggestion = '';
+                        if (s.signal === 'BUY' || s.signal === 'STRONG_BUY') {
+                            suggestion = '<span style="color:#28a745;font-weight:bold;">↑ 加仓/建仓</span>';
+                        } else if (s.signal === 'SELL' || s.signal === 'STRONG_SELL') {
+                            suggestion = '<span style="color:#dc3545;font-weight:bold;">↓ 减仓/清仓</span>';
+                        } else {
+                            suggestion = '<span style="color:#856404;">→ 继续持有</span>';
+                        }
+
+                        html += '<tr>';
+                        html += '<td style="padding:8px;font-family:monospace;"><strong>' + (s.symbol || '-') + '</strong></td>';
+                        html += '<td style="padding:8px;">' + (s.name || '-') + '</td>';
+                        html += '<td style="padding:8px;text-align:center;"><span style="color:' + s.signal_color + ';font-weight:bold;">' + s.signal_label + '</span></td>';
+                        html += '<td style="padding:8px;text-align:right;">¥' + ((s.current_price || 0)).toFixed(2) + '</td>';
+                        html += '<td style="padding:8px;text-align:right;">' + (s.quantity || 0) + '</td>';
+                        html += '<td style="padding:8px;text-align:right;" class="' + profitClass + '">' + ((s.profit_loss_pct || 0) >= 0 ? '+' : '') + (s.profit_loss_pct || 0).toFixed(2) + '%</td>';
+                        html += '<td style="padding:8px;text-align:right;font-size:0.85em;color:#666;max-width:180px;overflow:hidden;text-overflow:ellipsis;">' + indicatorText + '</td>';
+                        html += '<td style="padding:8px;font-size:0.85em;color:#666;max-width:200px;">' + (s.signal_desc || '-') + '</td>';
+                        html += '<td style="padding:8px;text-align:center;">' + suggestion + '</td>';
+                        html += '</tr>';
+                    });
+                    tbody.html(html);
+                }
+
+                $('#analysis-signals').show();
+                // 滚动到分析面板
+                $('html, body').animate({ scrollTop: panel.offset().top - 20 }, 300);
+            }).fail(function(xhr) {
+                loading.hide();
+                error.text(xhr.responseJSON?.error || '网络错误').show();
+            });
+        }
+
+        function refreshStrategyAnalysis() {
+            if (currentAnalysisStrategyId) {
+                loadStrategyAnalysis(currentAnalysisStrategyId);
+            }
+        }
+
+        // 编辑策略
+        function showEditStrategyModal() {
+            if (!currentAnalysisStrategyId) return;
+
+            // 加载可用策略到编辑下拉框
+            if (availableStrategies.length === 0) {
+                $.get('/api/strategies/available', function(resp) {
+                    if (resp.success) {
+                        availableStrategies = resp.strategies;
+                        populateEditModal();
+                    }
+                });
+            } else {
+                populateEditModal();
+            }
+        }
+
+        function populateEditModal() {
+            $.get('/api/strategies/' + currentAnalysisStrategyId, function(strat) {
+                if (!strat || strat.error) return;
+
+                $('#edit-strat-name').val(strat.name || '');
+
+                var sel = $('#edit-strat-class');
+                sel.html('<option value="">不关联</option>');
+                availableStrategies.forEach(function(s) {
+                    sel.append('<option value="' + s['class'] + '">' + s.name + '</option>');
+                });
+                sel.val(strat.strategy_class || '');
+
+                // 渲染参数
+                var container = $('#edit-strat-params-container');
+                var fields = $('#edit-strat-params-fields');
+                var desc = $('#edit-strat-class-desc');
+
+                if (strat.strategy_class) {
+                    var strategy = null;
+                    for (var i = 0; i < availableStrategies.length; i++) {
+                        if (availableStrategies[i]['class'] === strat.strategy_class) {
+                            strategy = availableStrategies[i];
+                            break;
+                        }
+                    }
+                    if (strategy) {
+                        desc.text(strategy.description);
+                        var html = '';
+                        var currentParams = strat.strategy_params || {};
+                        strategy.params.forEach(function(p) {
+                            var inputId = 'edit-param-' + p.key;
+                            var val = (currentParams[p.key] !== undefined) ? currentParams[p.key] : p.default;
+                            var step = p.type === 'float' ? '0.1' : '1';
+                            html += '<div style="margin-bottom:8px;">';
+                            html += '<label style="font-size:0.9em; display:block; margin-bottom:3px;">' + p.label + '</label>';
+                            html += '<input type="number" id="' + inputId + '" value="' + val + '" step="' + step + '" min="' + (p.min||0) + '" max="' + (p.max||999) + '" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;">';
+                            html += '</div>';
+                        });
+                        fields.html(html);
+                        container.show();
+                    }
+                } else {
+                    container.hide();
+                    fields.html('');
+                    desc.text('');
+                }
+
+                $('#edit-strategy-modal').addClass('active');
+            });
+        }
+
+        // 保存编辑策略
+        $('#edit-strategy-form').on('submit', function(e) {
+            e.preventDefault();
+            if (!currentAnalysisStrategyId) return;
+
+            var params = {};
+            $('#edit-strat-params-fields input[type="number"]').each(function() {
+                var key = this.id.replace(/^edit-param-/, '');
+                var val = parseFloat(this.value);
+                if (Number.isInteger(val)) {
+                    params[key] = parseInt(this.value);
+                } else {
+                    params[key] = val;
+                }
+            });
+
+            var data = {
+                strategy_class: $('#edit-strat-class').val() || null,
+                strategy_params: Object.keys(params).length > 0 ? params : null
+            };
+
+            $.ajax({
+                url: '/api/strategies/' + currentAnalysisStrategyId,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    closeModal('edit-strategy-modal');
+                    // 重新加载分析和策略列表
+                    loadStrategyAnalysis(currentAnalysisStrategyId);
+                    loadStrategiesForPosition();
+                },
+                error: function(xhr) {
+                    alert('保存失败: ' + (xhr.responseJSON?.error || '网络错误'));
+                }
+            });
+        });
 
         // 更新策略选择下拉框
         function updateStrategySelects(strategies) {
@@ -1914,6 +2609,10 @@
 
         function showAddStrategyModal() {
             $('#add-strategy-modal').addClass('active');
+            // 重新加载可选策略列表
+            if (availableStrategies.length === 0) {
+                loadAvailableStrategies('strat-class', 'strat-class-desc');
+            }
         }
 
         function showAddTransactionModal() {
@@ -1983,7 +2682,9 @@
                 name: $('#strat-name').val(),
                 description: $('#strat-description').val(),
                 initial_capital: parseFloat($('#strat-initial-capital').val()),
-                risk_level: $('#strat-risk-level').val()
+                risk_level: $('#strat-risk-level').val(),
+                strategy_class: $('#strat-class').val() || null,
+                strategy_params: collectStratParams('strat-params-fields')
             };
 
             $.ajax({
@@ -2247,123 +2948,90 @@
             }, 500);
         });
 
-        // ==================== 股票候选功能 ====================
+        // ==================== 股票候选功能（单表格） ====================
 
-        // Tab 切换：北向推荐 / 全市场推荐
-        function switchCandidateTab(tab) {
-            const isNorthbound = tab === 'northbound';
-            $('#northbound-table').toggle(isNorthbound);
-            $('#all-market-table').toggle(!isNorthbound);
-            $('#tab-northbound').toggleClass('btn-primary', isNorthbound).toggleClass('btn-secondary', !isNorthbound);
-            $('#tab-all-market').toggleClass('btn-primary', !isNorthbound).toggleClass('btn-secondary', isNorthbound);
-        }
-
-        // 加载候选股票数据（双榜单）
+        // 加载候选股票数据
         function loadCandidates() {
+            const tbody = $('#candidates-table-body');
             const summaryDiv = $('#candidate-summary');
             const resultsSection = $('#candidate-results-section');
 
-            // 两个表格都显示加载状态
-            $('#northbound-table-body').html('<tr><td colspan="16"><div class="loading">加载中</div></td></tr>');
-            $('#all-market-table-body').html('<tr><td colspan="14"><div class="loading">加载中</div></td></tr>');
+            tbody.html('<tr><td colspan="15"><div class="loading">加载中</div></td></tr>');
 
             $.get('/api/candidates/latest', function(response) {
                 if (!response.success) {
-                    $('#northbound-table-body').html(`<tr><td colspan="16"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
-                    $('#all-market-table-body').html(`<tr><td colspan="14"><div class="error">加载失败: ${response.error || '未知错误'}</div></td></tr>`);
+                    tbody.html('<tr><td colspan="15"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
                     summaryDiv.hide();
                     resultsSection.hide();
                     return;
                 }
 
+                summaryDiv.show();
                 if (!response.screening_date) {
-                    // 无数据
-                    summaryDiv.show();
                     $('#candidate-date').text('-');
-                    $('#candidate-pool-size').text('0 / 0 只');
+                    $('#candidate-pool-size').text('0 只');
                     $('#candidate-elapsed').text('-');
                     resultsSection.show();
-                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">暂无候选股数据，请在交易日收盘后运行筛选</td></tr>');
-                    $('#all-market-table-body').html('<tr><td colspan="14" style="text-align:center;padding:40px;color:#999;">暂无候选股数据</td></tr>');
-                    switchCandidateTab('northbound');
+                    tbody.html('<tr><td colspan="15" style="text-align:center;padding:40px;color:#999;">暂无候选股数据，请在交易日收盘后运行筛选</td></tr>');
                     return;
                 }
 
-                summaryDiv.show();
                 $('#candidate-date').text(response.screening_date);
-                $('#candidate-pool-size').text((response.northbound_count || 0) + ' / ' + (response.all_market_count || 0) + ' 只');
-                $('#candidate-elapsed').text(response.elapsed_seconds ? response.elapsed_seconds.toFixed(1) + ' 秒' : '-');
+                $('#candidate-pool-size').text(response.count + ' 只');
+                $('#candidate-elapsed').text('-');
 
                 resultsSection.show();
 
-                // 渲染北向榜单
-                if (response.northbound && response.northbound.length > 0) {
-                    renderCandidatesTable(response.northbound, 'northbound');
+                if (response.candidates && response.candidates.length > 0) {
+                    renderCandidatesTable(response.candidates);
                 } else {
-                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">暂无北向标的候选数据</td></tr>');
+                    tbody.html('<tr><td colspan="15" style="text-align:center;padding:40px;color:#999;">暂无候选股数据</td></tr>');
                 }
-
-                // 渲染全市场榜单
-                if (response.all_market && response.all_market.length > 0) {
-                    renderCandidatesTable(response.all_market, 'all_market');
-                } else {
-                    $('#all-market-table-body').html('<tr><td colspan="14" style="text-align:center;padding:40px;color:#999;">暂无全市场候选数据</td></tr>');
-                }
-
-                // 默认显示北向Tab
-                switchCandidateTab('northbound');
             }).fail(function(xhr) {
-                $('#northbound-table-body').html(`<tr><td colspan="16"><div class="error">请求失败: ${xhr.statusText || '网络错误'}</div></td></tr>`);
+                tbody.html('<tr><td colspan="15"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
                 summaryDiv.hide();
                 resultsSection.hide();
             });
         }
 
-        // 渲染候选股票表格（支持双模式）
-        function renderCandidatesTable(results, mode) {
-            const isNorthbound = mode === 'northbound';
-            const tableBody = isNorthbound ? $('#northbound-table-body') : $('#all-market-table-body');
+        // 渲染候选股票表格（单表格）
+        function renderCandidatesTable(candidates) {
+            const tbody = $('#candidates-table-body');
             let html = '';
 
-            results.forEach(function(item) {
+            candidates.forEach(function(item) {
                 const returnClass = item.total_return >= 0 ? 'positive' : 'negative';
                 const ddClass = item.max_drawdown <= 0 ? 'negative' : 'positive';
                 const sharpeClass = item.sharpe_ratio >= 0 ? 'positive' : 'negative';
 
-                const clickArgs = isNorthbound
-                    ? `showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score}, ${item.northbound_stock_score || 0}, ${item.northbound_flow_score || 0}, ${item.technical_score || 0}, ${item.performance_score || 0}, ${item.combined_score || 0}, true)`
-                    : `showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score}, ${item.trend_score}, ${item.volume_score}, ${item.volatility_score}, 0, 0, ${item.technical_score || 0}, ${item.performance_score || 0}, ${item.combined_score || 0}, false)`;
+                const clickArgs = `showCandidateDetail(${item.rank}, '${escapeHtml(item.symbol)}', '${escapeHtml(item.name)}', ${item.momentum_score || 0}, ${item.trend_score || 0}, ${item.volume_score || 0}, ${item.volatility_score || 0}, ${item.technical_score || 0}, ${item.performance_score || 0}, ${item.combined_score || 0})`;
 
-                html += '<tr style="cursor: pointer;" onclick="' + clickArgs + '">';
-                html += `<td>${item.rank}</td>`;
-                html += `<td><strong>${escapeHtml(item.symbol)}</strong></td>`;
-                html += `<td>${escapeHtml(item.name)}</td>`;
-                html += `<td>${item.current_price != null ? '¥' + item.current_price.toFixed(2) : '-'}</td>`;
-                html += `<td>${(item.technical_score || 0).toFixed(1)}</td>`;
-                html += `<td>${(item.performance_score || 0).toFixed(1)}</td>`;
-                html += `<td><strong>${(item.combined_score || 0).toFixed(1)}</strong></td>`;
-                html += `<td>${item.momentum_score.toFixed(1)}</td>`;
-                html += `<td>${item.trend_score.toFixed(1)}</td>`;
-                html += `<td>${item.volume_score.toFixed(1)}</td>`;
-                html += `<td>${item.volatility_score.toFixed(1)}</td>`;
-                if (isNorthbound) {
-                    html += `<td>${(item.northbound_stock_score || 0).toFixed(1)}</td>`;
-                    html += `<td>${(item.northbound_flow_score || 0).toFixed(1)}</td>`;
-                }
-                html += `<td class="${returnClass}">${formatPercent(item.total_return)}</td>`;
-                html += `<td class="${ddClass}">${formatPercent(item.max_drawdown)}</td>`;
-                html += `<td class="${sharpeClass}">${item.sharpe_ratio != null ? item.sharpe_ratio.toFixed(2) : '-'}</td>`;
+                var rowBg = item.is_held ? ' style="cursor:pointer;background:#e8f5e9;"' : ' style="cursor:pointer;"';
+                html += '<tr' + rowBg + ' onclick="' + clickArgs + '">';
+                html += '<td>' + item.rank + '</td>';
+                html += '<td><strong>' + escapeHtml(item.symbol) + '</strong></td>';
+                html += '<td>' + escapeHtml(item.name) + (item.is_held ? ' <span class="badge badge-holding">持仓</span>' : '') + '</td>';
+                html += '<td>' + (item.current_price != null ? '¥' + Number(item.current_price).toFixed(2) : '-') + '</td>';
+                html += '<td>' + (item.technical_score || 0).toFixed(1) + '</td>';
+                html += '<td>' + (item.performance_score || 0).toFixed(1) + '</td>';
+                html += '<td><strong>' + (item.combined_score || 0).toFixed(1) + '</strong></td>';
+                html += '<td>' + (item.momentum_score || 0).toFixed(1) + '</td>';
+                html += '<td>' + (item.trend_score || 0).toFixed(1) + '</td>';
+                html += '<td>' + (item.volume_score || 0).toFixed(1) + '</td>';
+                html += '<td>' + (item.volatility_score || 0).toFixed(1) + '</td>';
+                html += '<td class="' + returnClass + '">' + formatPercent(item.total_return) + '</td>';
+                html += '<td class="' + ddClass + '">' + formatPercent(item.max_drawdown) + '</td>';
+                html += '<td class="' + sharpeClass + '">' + (item.sharpe_ratio != null ? Number(item.sharpe_ratio).toFixed(2) : '-') + '</td>';
                 html += '</tr>';
             });
 
-            tableBody.html(html);
+            tbody.html(html);
         }
 
-        // 显示候选股票详情面板（雷达图，含北向因子）
-        function showCandidateDetail(rank, symbol, name, momentum, trend, volume, volatility, nbStock, nbFlow, technicalScore, performanceScore, combinedScore, hasNorthbound) {
+        // 显示候选股票详情面板（雷达图）
+        function showCandidateDetail(rank, symbol, name, momentum, trend, volume, volatility, technicalScore, performanceScore, combinedScore) {
             const panel = $('#candidate-detail-panel');
 
-            // 切换显示/隐藏
             if (panel.is(':visible') && panel.data('current-rank') === rank) {
                 panel.hide();
                 return;
@@ -2372,30 +3040,20 @@
             panel.show();
             panel.data('current-rank', rank);
 
-            // 更新标题和分数
             const techStr = (technicalScore || 0).toFixed(1);
             const perfStr = (performanceScore || 0).toFixed(1);
             const combStr = (combinedScore || 0).toFixed(1);
-            panel.find('h4').html(`${rank}. ${symbol} - ${name} 因子得分详情 <small style="color:#666;margin-left:10px;">技术 ${techStr} | 绩效 ${perfStr} | <strong>综合 ${combStr}</strong></small>`);
+            panel.find('h4').html(rank + '. ' + symbol + ' - ' + name + ' 因子得分详情 <small style="color:#666;margin-left:10px;">技术 ' + techStr + ' | 绩效 ' + perfStr + ' | <strong>综合 ' + combStr + '</strong></small>');
 
-            // 销毁旧图表
             const canvas = document.getElementById('candidate-radar-chart');
             if (candidateRadarChart) {
                 candidateRadarChart.destroy();
                 candidateRadarChart = null;
             }
 
-            // 根据是否有北向数据决定雷达图标签
-            let labels, data;
-            if (hasNorthbound) {
-                labels = ['动量', '趋势', '量价', '波动', '北向存量', '北向增量'];
-                data = [momentum, trend, volume, volatility, nbStock, nbFlow];
-            } else {
-                labels = ['动量', '趋势', '量价', '波动'];
-                data = [momentum, trend, volume, volatility];
-            }
+            const labels = ['动量', '趋势', '量价', '波动'];
+            const data = [momentum, trend, volume, volatility];
 
-            // 创建雷达图
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 candidateRadarChart = new Chart(ctx, {
@@ -2418,59 +3076,74 @@
                             r: {
                                 beginAtZero: true,
                                 max: 100,
-                                ticks: {
-                                    stepSize: 20,
-                                    backdropColor: 'transparent'
-                                }
+                                ticks: { stepSize: 20, backdropColor: 'transparent' }
                             }
                         },
-                        plugins: {
-                            legend: {
-                                position: 'bottom'
-                            }
-                        }
+                        plugins: { legend: { position: 'bottom' } }
                     }
                 });
             }
         }
 
-        // 加载历史候选数据（双榜单）
+        // 可用日期列表（用于校验）
+        var candidateDatePicker = null;
+
+        // 初始化日期选择器（弹出式日历）
+        function loadCandidateDates() {
+            $.get('/api/candidates/dates', function(response) {
+                if (!response.success || !response.dates) return;
+                var dates = response.dates;
+                $('#candidate-dates-hint').text(dates.length + ' 个交易日');
+
+                if (candidateDatePicker) {
+                    candidateDatePicker.destroy();
+                    candidateDatePicker = null;
+                }
+
+                candidateDatePicker = flatpickr('#candidate-date-input', {
+                    enable: dates,
+                    dateFormat: 'Y-m-d',
+                    onChange: function(selectedDates, dateStr) {
+                        if (dateStr) loadCandidateHistory();
+                    }
+                });
+
+                // 默认加载最新日期
+                candidateDatePicker.setDate(dates[0], true);
+            });
+        }
+
+        // 加载历史候选数据（单表格）
         function loadCandidateHistory() {
-            var dateVal = $('#candidate-history-date').val();
+            var dateVal = $('#candidate-date-input').val() || (candidateDatePicker ? candidateDatePicker.selectedDates[0] : null);
+            if (dateVal instanceof Date) dateVal = dateVal.toISOString().slice(0,10);
             if (!dateVal) {
                 showError('请选择查询日期');
                 return;
             }
 
-            $('#northbound-table-body').html('<tr><td colspan="16"><div class="loading">加载中</div></td></tr>');
-            $('#all-market-table-body').html('<tr><td colspan="14"><div class="loading">加载中</div></td></tr>');
+            var tbody = $('#candidates-table-body');
+            tbody.html('<tr><td colspan="15"><div class="loading">加载中</div></td></tr>');
 
             $.get('/api/candidates/history?date=' + encodeURIComponent(dateVal), function(response) {
                 if (!response.success) {
-                    $('#northbound-table-body').html('<tr><td colspan="16"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
+                    tbody.html('<tr><td colspan="15"><div class="error">加载失败: ' + (response.error || '未知错误') + '</div></td></tr>');
                     return;
                 }
 
                 var results = response.results[dateVal];
                 if (!results || results.length === 0) {
-                    $('#northbound-table-body').html('<tr><td colspan="16" style="text-align:center;padding:40px;color:#999;">该日期暂无候选股数据</td></tr>');
+                    tbody.html('<tr><td colspan="15" style="text-align:center;padding:40px;color:#999;">该日期暂无候选股数据</td></tr>');
                     return;
                 }
 
-                // 按 has_northbound 拆分
-                var nbResults = results.filter(function(r) { return r.has_northbound; });
-                var amResults = results.filter(function(r) { return !r.has_northbound; });
-
                 $('#candidate-date').text(dateVal);
-                $('#candidate-pool-size').text(nbResults.length + ' / ' + amResults.length + ' 只');
+                $('#candidate-pool-size').text(results.length + ' 只');
                 $('#candidate-summary').show();
                 $('#candidate-results-section').show();
-
-                renderCandidatesTable(nbResults, 'northbound');
-                renderCandidatesTable(amResults, 'all_market');
-                switchCandidateTab('northbound');
+                renderCandidatesTable(results);
             }).fail(function(xhr) {
-                $('#northbound-table-body').html('<tr><td colspan="16"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
+                tbody.html('<tr><td colspan="15"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
             });
         }
 
@@ -2530,7 +3203,7 @@
                         '<tr style="cursor:pointer" onclick="$(\'#chart-symbol\').val(\'' + row.vt_symbol + '\'); loadFactorHistory();">' +
                         '<td>' + (i + 1) + '</td>' +
                         '<td><strong>' + row.vt_symbol + '</strong></td>' +
-                        '<td>-</td>' +
+                        '<td>' + (row.name || '-') + '</td>' +
                         '<td class="' + scoreColor + ' fw-bold">' + final + '</td>' +
                         '<td>' + pe + '</td>' +
                         '<td>' + pb + '</td>' +
@@ -2722,6 +3395,168 @@
                 $('#indicator-date').text('');
             }
         };
+
+        // ==================== ETF 推荐功能 ====================
+        var etfAllCandidates = [];
+        var etfCurrentTopN = 30;
+
+        function getEtfActionBadge(type) {
+            var labels = {STRONG_BUY: "强烈买入", BUY: "买入", HOLD: "持有", SELL: "卖出"};
+            var cls = {STRONG_BUY: "badge-strong-buy", BUY: "badge-buy", HOLD: "badge-hold", SELL: "badge-sell"};
+            return '<span class="' + (cls[type] || 'badge-hold') + '">' + (labels[type] || type) + '</span>';
+        }
+
+        function getEtfAction(score, rank) {
+            if (rank <= 5 && score >= 80) return "STRONG_BUY";
+            if (score < 60) return "SELL";
+            if (rank <= 15) return "BUY";
+            return "HOLD";
+        }
+
+        function renderEtfFactorWeights() {
+            var el = document.getElementById("etf-factor-weights-content");
+            var weights = {liquidity: 0.20, size: 0.15, cost: 0.10, tracking: 0.10, premium: 0.05, yield: 0.10, momentum: 0.20, volatility: 0.10};
+            var labels = {liquidity: "流动性", size: "规模", cost: "费率", tracking: "跟踪误差", premium: "折溢价", yield: "股息率", momentum: "动量", volatility: "波动率"};
+            var html = "";
+            for (var k in weights) {
+                var pct = (weights[k] * 100).toFixed(0);
+                html += '<div class="etf-weight-row"><span class="label">' + (labels[k] || k) + '</span><div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div><span class="value">' + pct + '%</span></div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function renderEtfTable(candidates) {
+            var tbody = document.getElementById("etf-tbody");
+            var table = document.getElementById("etf-data-table");
+            var loading = document.getElementById("etf-loading");
+            var error = document.getElementById("etf-error");
+
+            if (!candidates || candidates.length === 0) {
+                loading.style.display = "none";
+                error.style.display = "block";
+                error.textContent = "暂无 ETF 数据，请先运行筛选";
+                table.style.display = "none";
+                return;
+            }
+
+            var rows = "";
+            var display = etfCurrentTopN > 0 ? candidates.slice(0, etfCurrentTopN) : candidates;
+
+            for (var i = 0; i < display.length; i++) {
+                var c = display[i];
+                var rankClass = c.rank === 1 ? "rank-1" : c.rank === 2 ? "rank-2" : c.rank === 3 ? "rank-3" : "";
+                var action = getEtfAction(c.combined_score, c.rank);
+                var fs = c.fund_size ? c.fund_size.toFixed(1) : "--";
+                var er = c.expense_ratio ? c.expense_ratio.toFixed(3) : "--";
+
+                rows += '<tr><td class="rank-cell ' + rankClass + '">' + c.rank + '</td>'
+                    + '<td style="font-family:monospace;">' + (c.ts_code || '') + '</td>'
+                    + '<td>' + (c.name || '') + '</td>'
+                    + '<td>' + getEtfActionBadge(action) + '</td>'
+                    + '<td><strong>' + (c.combined_score || 0).toFixed(1) + '</strong></td>'
+                    + '<td>' + (c.liquidity_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + (c.size_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + (c.cost_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + (c.momentum_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + (c.volatility_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + (c.yield_score || 0).toFixed(1) + '</td>'
+                    + '<td>' + fs + '</td>'
+                    + '<td>' + er + '</td></tr>';
+            }
+
+            tbody.innerHTML = rows;
+            table.style.display = "";
+            loading.style.display = "none";
+            error.style.display = "none";
+        }
+
+        function updateEtfStats(candidates) {
+            var counts = {STRONG_BUY: 0, BUY: 0, HOLD: 0, SELL: 0};
+            for (var i = 0; i < candidates.length; i++) {
+                var a = getEtfAction(candidates[i].combined_score, candidates[i].rank);
+                counts[a]++;
+            }
+            document.getElementById("etf-total").textContent = candidates.length;
+            document.getElementById("etf-strong-buy").textContent = counts.STRONG_BUY;
+            document.getElementById("etf-buy").textContent = counts.BUY;
+            document.getElementById("etf-hold").textContent = counts.HOLD;
+            document.getElementById("etf-sell").textContent = counts.SELL;
+        }
+
+        function updateEtfSummary(candidates, dateStr) {
+            var el = document.getElementById("etf-summary-content");
+            if (!candidates || candidates.length === 0) {
+                el.textContent = "暂无数据";
+                return;
+            }
+            var sum = 0, max = 0;
+            for (var i = 0; i < candidates.length; i++) {
+                sum += candidates[i].combined_score;
+                if (candidates[i].combined_score > max) max = candidates[i].combined_score;
+            }
+            var avg = sum / candidates.length;
+            var top1 = candidates[0];
+            el.innerHTML = '<div style="line-height:1.8;">'
+                + '<div>数据日期: ' + (dateStr || "--") + '</div>'
+                + '<div>综合评分: 最高 ' + max.toFixed(1) + ' | 平均 ' + avg.toFixed(1) + '</div>'
+                + '<hr style="margin:8px 0;border:none;border-top:1px solid #e0e0e0;">'
+                + '<div><strong>Top 1:</strong> ' + (top1.name || top1.ts_code) + ' (' + top1.combined_score.toFixed(1) + '分)</div></div>';
+        }
+
+        function loadEtfData() {
+            var loading = document.getElementById("etf-loading");
+            var error = document.getElementById("etf-error");
+            loading.style.display = "block";
+            error.style.display = "none";
+
+            fetch("/api/etf/candidates/latest")
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.candidates) {
+                        etfAllCandidates = data.candidates;
+                        document.getElementById("etf-data-date").textContent = "数据日期：" + (data.screening_date || "--");
+                        renderEtfTable(etfAllCandidates);
+                        updateEtfStats(etfAllCandidates);
+                        updateEtfSummary(etfAllCandidates, data.screening_date);
+                    } else {
+                        loading.style.display = "none";
+                        error.style.display = "block";
+                        error.textContent = data.message || "加载失败";
+                    }
+                })
+                .catch(function(err) {
+                    loading.style.display = "none";
+                    error.style.display = "block";
+                    error.textContent = "请求失败: " + err.message;
+                });
+        }
+
+        function changeEtfTopN() {
+            etfCurrentTopN = parseInt(document.getElementById("etf-top-n").value);
+            renderEtfTable(etfAllCandidates);
+        }
+
+        function refreshEtfData() { loadEtfData(); }
+
+        function runEtfScreening() {
+            var btn = document.querySelector("button[onclick='runEtfScreening()']");
+            btn.disabled = true;
+            btn.textContent = "筛选中...";
+            fetch("/api/etf/recommendations/generate", {method: "POST"})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var n = data.screening ? data.screening.candidates_count : 0;
+                        var t = data.screening ? data.screening.elapsed : 0;
+                        alert("ETF 筛选完成！共筛选 " + n + " 只，耗时 " + t + "s");
+                        loadEtfData();
+                    } else { alert("筛选失败: " + (data.error || "未知错误")); }
+                })
+                .catch(function(err) { alert("请求失败: " + err.message); })
+                .finally(function() { btn.disabled = false; btn.textContent = "立即筛选"; });
+        }
+
+        renderEtfFactorWeights();
     </script>
 </body>
 </html>

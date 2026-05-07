@@ -71,6 +71,10 @@ class Strategy(Base):
     max_drawdown = Column(Numeric(8, 4))  # 最大回撤
     sharpe_ratio = Column(Numeric(6, 4))  # 夏普比率
     risk_level = Column(String(20))  # 风险等级
+    strategy_class = Column(
+        String(100), nullable=True
+    )  # 回测策略类名，如 DualMaStrategy
+    strategy_params = Column(Text, nullable=True)  # JSON格式的策略参数
     user_id = Column(Integer, nullable=False, default=1)  # 用户ID
     recalc_status = Column(String(20), nullable=False, default="clean")  # 重算状态
     recalc_retry_count = Column(Integer, nullable=False, default=0)  # 重试次数

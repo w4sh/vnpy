@@ -81,6 +81,8 @@ def snapshot():
         date: 可选，指定日期 YYYY-MM-DD，默认最新
         sort: 排序字段，默认 final_score
     """
+    from web_app.stock_names import get_stock_name
+
     try:
         symbols = get_stock_pool()
         if not symbols:
@@ -139,6 +141,11 @@ def snapshot():
                 latest = latest.sort(sort_col, descending=True)
 
         result = latest.head(50).to_dicts()
+        # 补充股票中文名称
+        for row in result:
+            vt = row.get("vt_symbol", "")
+            if vt and (row.get("name") is None or row.get("name") == "-"):
+                row["name"] = get_stock_name(vt)
         return jsonify({"count": len(result), "data": result})
     except Exception as e:
         logger.error(f"因子快照 API 异常: {e}")

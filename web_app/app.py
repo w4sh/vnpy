@@ -26,7 +26,7 @@ from scripts.advanced_bollinger_picker import AdvancedBollingerPicker
 
 # 导入股票名称映射
 from web_app.stock_names import format_stock_symbol, get_stock_name
-from web_app.models import CandidateStock, get_db_session
+from web_app.models import CandidateStock, Position, get_db_session
 
 # 导入持仓管理API蓝图
 from web_app.position_api import position_bp
@@ -463,10 +463,20 @@ def get_latest_candidates():
 
         screening_date = latest_date_row[0].strftime("%Y-%m-%d")
 
+        # 获取当前持仓，用于标记已持有股票
+        held_symbols = {
+            p.symbol
+            for p in session.query(Position.symbol).filter(Position.status == "holding")
+        }
+
         latest = (
             session.query(CandidateStock)
             .filter(CandidateStock.screening_date == latest_date_row[0])
-            .order_by(CandidateStock.rank)
+            .order_by(
+                CandidateStock.combined_score.desc(),
+                CandidateStock.total_return.desc(),
+                CandidateStock.sharpe_ratio.desc(),
+            )
             .all()
         )
 
@@ -477,6 +487,7 @@ def get_latest_candidates():
                     "rank": c.rank,
                     "symbol": c.symbol,
                     "name": c.name or get_stock_name(c.symbol),
+                    "is_held": c.symbol in held_symbols,
                     "score": float(c.score) if c.score else 0,
                     "technical_score": float(c.technical_score)
                     if c.technical_score
@@ -518,6 +529,27 @@ def get_latest_candidates():
             session.close()
 
 
+@app.route("/api/candidates/dates")
+def get_candidate_dates():
+    """获取所有有候选股数据的日期列表"""
+    session = None
+    try:
+        session = get_db_session()
+        rows = (
+            session.query(CandidateStock.screening_date)
+            .distinct()
+            .order_by(CandidateStock.screening_date.desc())
+            .all()
+        )
+        dates = [r[0].strftime("%Y-%m-%d") for r in rows if r[0]]
+        return jsonify({"success": True, "dates": dates, "count": len(dates)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        if session:
+            session.close()
+
+
 @app.route("/api/candidates/history")
 def get_candidates_history():
     """查询指定日期的候选股历史记录"""
@@ -526,7 +558,14 @@ def get_candidates_history():
         date_str = request.args.get("date", "")
         session = get_db_session()
 
-        query = session.query(CandidateStock).order_by(CandidateStock.rank)
+        # 获取当前持仓，用于标记已持有股票
+        held_symbols = {p.symbol for p in session.query(Position.symbol).filter(Position.status == "holding")}
+
+        query = session.query(CandidateStock).order_by(
+            CandidateStock.combined_score.desc(),
+            CandidateStock.total_return.desc(),
+            CandidateStock.sharpe_ratio.desc(),
+        )
 
         if date_str:
             from datetime import datetime as dt
@@ -547,6 +586,7 @@ def get_candidates_history():
                     "rank": c.rank,
                     "symbol": c.symbol,
                     "name": c.name or get_stock_name(c.symbol),
+                    "is_held": c.symbol in held_symbols,
                     "score": float(c.score) if c.score else 0,
                     "technical_score": float(c.technical_score)
                     if c.technical_score

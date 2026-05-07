@@ -9,7 +9,9 @@
 
 from flask import Blueprint, request, jsonify
 from web_app.models import Strategy, StrategyAuditLog, Position, get_db_session
+from web_app.strategy_signal import get_available_strategies, compute_position_signals
 from datetime import datetime
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,19 @@ def update_strategy(strategy_id):
             old_values["risk_level"] = strategy.risk_level
             strategy.risk_level = data["risk_level"]
             changes.append("risk_level")
+
+        # 更新关联回测策略
+        if "strategy_class" in data:
+            old_values["strategy_class"] = strategy.strategy_class
+            strategy.strategy_class = data["strategy_class"]
+            changes.append("strategy_class")
+
+        if "strategy_params" in data:
+            old_values["strategy_params"] = strategy.strategy_params
+            strategy.strategy_params = json.dumps(
+                data["strategy_params"], ensure_ascii=False
+            )
+            changes.append("strategy_params")
 
         # 检查是否尝试修改受保护字段
         protected_fields = [
@@ -100,6 +115,10 @@ def update_strategy(strategy_id):
                 if strategy.total_return
                 else 0,
                 "risk_level": strategy.risk_level,
+                "strategy_class": strategy.strategy_class,
+                "strategy_params": json.loads(strategy.strategy_params)
+                if strategy.strategy_params
+                else None,
                 "recalc_status": strategy.recalc_status,
                 "updated_at": strategy.updated_at.isoformat(),
             }
@@ -204,6 +223,10 @@ def get_strategy(strategy_id):
                 "recalc_retry_count": strategy.recalc_retry_count,
                 "last_error": strategy.last_error,
                 "status": strategy.status,
+                "strategy_class": strategy.strategy_class,
+                "strategy_params": json.loads(strategy.strategy_params)
+                if strategy.strategy_params
+                else None,
                 "created_at": strategy.created_at.isoformat()
                 if strategy.created_at
                 else None,
@@ -299,14 +322,126 @@ def restore_strategy(strategy_id):
 
         logger.info(f"策略{strategy_id}已恢复")
 
-        return jsonify({
-            "id": strategy_id,
-            "status": "active",
-            "message": "策略已恢复"
-        })
+        return jsonify({"id": strategy_id, "status": "active", "message": "策略已恢复"})
     except Exception as e:
         session.rollback()
         logger.error(f"恢复策略{strategy_id}失败: {e}")
         return jsonify({"error": f"恢复失败: {str(e)}"}), 500
+    finally:
+        session.close()
+
+
+@strategy_bp.route("/api/strategies/available", methods=["GET"])
+def list_available_strategies():
+    """获取可选的回测策略列表"""
+    try:
+        strategies = get_available_strategies()
+        return jsonify({"success": True, "strategies": strategies})
+    except Exception as e:
+        logger.error(f"获取可用策略列表失败: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@strategy_bp.route("/api/strategies/<int:strategy_id>/analysis", methods=["GET"])
+def get_strategy_analysis(strategy_id):
+    """获取策略分析报告
+
+    返回策略的持仓信号矩阵，包括每只持仓的信号、指标值和建议。
+    """
+    session = get_db_session()
+    try:
+        strategy = session.query(Strategy).get(strategy_id)
+        if not strategy or strategy.status == "deleted":
+            return jsonify({"error": "策略不存在"}), 404
+
+        if not strategy.strategy_class:
+            return jsonify(
+                {
+                    "success": True,
+                    "has_analysis": False,
+                    "message": "该策略未关联回测策略，请在编辑中设置",
+                }
+            )
+
+        # 获取持仓
+        positions = (
+            session.query(Position)
+            .filter_by(strategy_id=strategy_id, status="holding")
+            .all()
+        )
+
+        if not positions:
+            return jsonify(
+                {
+                    "success": True,
+                    "has_analysis": True,
+                    "strategy_summary": {
+                        "name": strategy.name,
+                        "description": strategy.description,
+                        "strategy_class": strategy.strategy_class,
+                    },
+                    "signals": [],
+                    "total_positions": 0,
+                }
+            )
+
+        # 整理持仓数据
+        positions_data = [
+            {
+                "symbol": p.symbol,
+                "name": p.name,
+                "quantity": p.quantity,
+                "cost_price": float(p.cost_price) if p.cost_price else 0,
+                "current_price": float(p.current_price) if p.current_price else 0,
+                "market_value": float(p.market_value) if p.market_value else 0,
+                "profit_loss": float(p.profit_loss) if p.profit_loss else 0,
+                "profit_loss_pct": float(p.profit_loss_pct) if p.profit_loss_pct else 0,
+            }
+            for p in positions
+        ]
+
+        # 计算信号
+        params = (
+            json.loads(strategy.strategy_params) if strategy.strategy_params else None
+        )
+        signals = compute_position_signals(
+            strategy.strategy_class, params, positions_data
+        )
+
+        # 策略汇总
+        total_market_value = sum(p.get("market_value", 0) for p in positions_data)
+        total_profit = sum(p.get("profit_loss", 0) for p in positions_data)
+        buy_signals = sum(
+            1 for s in signals if s.get("signal") in ("BUY", "STRONG_BUY")
+        )
+        sell_signals = sum(
+            1 for s in signals if s.get("signal") in ("SELL", "STRONG_SELL")
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "has_analysis": True,
+                "strategy_summary": {
+                    "name": strategy.name,
+                    "description": strategy.description,
+                    "strategy_class": strategy.strategy_class,
+                    "strategy_params": params,
+                    "total_positions": len(positions_data),
+                },
+                "total_summary": {
+                    "total_market_value": round(total_market_value, 2),
+                    "total_profit": round(total_profit, 2),
+                    "buy_signals": buy_signals,
+                    "sell_signals": sell_signals,
+                    "hold_signals": len(signals) - buy_signals - sell_signals,
+                },
+                "signals": signals,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"策略分析失败: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         session.close()

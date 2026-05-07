@@ -126,7 +126,11 @@ def _compute_combined_score(results: list[CandidateResult]) -> None:
 
 
 def _assign_ranks(results: list[CandidateResult], top_n: int) -> list[CandidateResult]:
-    results.sort(key=lambda x: x.combined_score, reverse=True)
+    """按综合分(主)→总收益(次)→夏普(再次)降序排列"""
+    results.sort(
+        key=lambda x: (x.combined_score, x.total_return, x.sharpe_ratio),
+        reverse=True,
+    )
     top = results[:top_n]
     for i, r in enumerate(top):
         r.rank = i + 1
@@ -184,6 +188,12 @@ def save_results_to_db(
         close_session = True
 
     try:
+        # 先删除同日期旧数据，避免重复
+        session.query(CandidateStock).filter(
+            CandidateStock.screening_date == screening_date
+        ).delete()
+        session.commit()
+
         for r in results:
             candidate = CandidateStock(
                 symbol=r.symbol,

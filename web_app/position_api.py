@@ -6,6 +6,7 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+import json
 from web_app.models import (
     Position,
     Strategy,
@@ -128,6 +129,31 @@ def create_position():
             )
 
             session.add(position)
+            session.flush()  # 先 flush 获取 position.id
+
+            # 自动生成买入交易记录
+            quantity = int(data.get("quantity", 0))
+            cost_price = float(data.get("cost_price", 0))
+            buy_date_str = data.get("buy_date")
+            buy_date = (
+                datetime.strptime(buy_date_str, "%Y-%m-%d").date()
+                if buy_date_str
+                else datetime.now().date()
+            )
+
+            transaction = Transaction(
+                position_id=position.id,
+                strategy_id=data.get("strategy_id"),
+                transaction_type="buy",
+                symbol=data.get("symbol"),
+                quantity=quantity,
+                price=cost_price,
+                amount=round(quantity * cost_price, 2),
+                fee=0,
+                transaction_date=buy_date,
+                notes=f"新建持仓 - {data.get('notes', '')}",
+            )
+            session.add(transaction)
             session.commit()
 
             return jsonify(
@@ -268,6 +294,10 @@ def get_strategies():
                     if strategy.sharpe_ratio
                     else 0,
                     "risk_level": strategy.risk_level,
+                    "strategy_class": strategy.strategy_class,
+                    "strategy_params": json.loads(strategy.strategy_params)
+                    if strategy.strategy_params
+                    else None,
                     "position_count": len(strategy.positions),
                     "created_at": strategy.created_at.isoformat()
                     if strategy.created_at
@@ -300,6 +330,12 @@ def create_strategy():
                 initial_capital=float(data.get("initial_capital", 1000000)),
                 current_capital=float(data.get("initial_capital", 1000000)),
                 risk_level=data.get("risk_level", "中等"),
+                strategy_class=data.get("strategy_class"),
+                strategy_params=json.dumps(
+                    data.get("strategy_params", {}), ensure_ascii=False
+                )
+                if data.get("strategy_params")
+                else None,
             )
 
             session.add(strategy)
