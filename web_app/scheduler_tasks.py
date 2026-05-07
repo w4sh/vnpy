@@ -15,23 +15,21 @@ from __future__ import annotations
 import logging
 import os
 import sys
-import traceback
 from datetime import date, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-# 每日任务补跑窗口：重启后 4 小时内仍会执行
-_MISSED_GRACE_SECONDS = 14_400
-
 from web_app.models import Strategy, get_db_session
 from web_app.recalc_service import RecalculationService, handle_recalc_failure
 
 logger = logging.getLogger(__name__)
 
+# 每日任务补跑窗口：重启后 4 小时内仍会执行
+_MISSED_GRACE_SECONDS = 14_400
+
 scheduler = BackgroundScheduler()
-_scheduler_initialized = False
 
 
 def recalc_dirty_strategies():
@@ -162,16 +160,9 @@ def run_daily_candidate_screening(trade_date: str | None = None):
 
 def init_scheduler():
     """初始化定时任务（幂等，可安全多次调用）"""
-    global _scheduler_initialized
-
-    if _scheduler_initialized:
-        logger.warning(
-            "init_scheduler 被重复调用，跳过（调用堆栈：%s）",
-            "".join(traceback.format_stack()[-6:-1]),
-        )
+    if scheduler.running:
+        logger.warning("init_scheduler 被重复调用，调度器已在运行中，跳过")
         return
-
-    _scheduler_initialized = True
 
     # 重算dirty策略：每5分钟执行一次
     scheduler.add_job(
@@ -409,17 +400,107 @@ def run_daily_etf():
         logger.error("每日 ETF 筛选推荐失败: %s", e)
 
 
-def shutdown_scheduler():
-    """关闭定时任务"""
-    global _scheduler_initialized
+def run_startup_catch_up():
+    """启动时补跑今日漏掉的每日任务（无时间门控）
 
-    if not _scheduler_initialized:
-        logger.warning("Scheduler 未初始化，跳过关闭")
+    仅检查「数据是否已存在」+「是否交易日」。
+    无论 Flask 何时启动，只要当天是交易日数据未生成就补跑。
+    顺序执行：候选股筛选 → 因子更新 → 组合推荐 → ETF 推荐。
+    """
+    today = date.today()
+    if today.weekday() >= 5:
+        logger.info("非交易日（%s），跳过启动补跑", today)
         return
 
-    if scheduler.running:
-        scheduler.shutdown()
-        _scheduler_initialized = False
-        logger.info("定时任务已关闭")
-    else:
-        logger.info("定时任务未在运行中")
+    from web_app.models import CandidateStock, EtfCandidate, PortfolioRecommendation
+
+    session = get_db_session()
+    try:
+        # ── 候选股筛选 ──
+        has_screening = (
+            session.query(CandidateStock)
+            .filter(CandidateStock.screening_date == today)
+            .first()
+            is not None
+        )
+        if has_screening:
+            logger.info("启动补跑: 候选股筛选已存在，跳过")
+        else:
+            logger.info("启动补跑: 执行候选股筛选")
+            try:
+                run_daily_candidate_screening()
+            except Exception as e:
+                logger.error("启动补跑候选股筛选失败: %s", e)
+
+        # ── 因子更新 ──
+        has_factor = False
+        try:
+            from vnpy.alpha.factors.fundamental import FundamentalStorage
+            from vnpy.alpha.factors.stock_pool import StockPoolManager
+
+            pm = StockPoolManager()
+            pool = pm.get_full_pool()
+            if pool:
+                fs = FundamentalStorage()
+                trade_date_str = today.strftime("%Y%m%d")
+                data = fs.load(
+                    [s["symbol"] for s in pool[:1]], trade_date_str, trade_date_str
+                )
+                if not data.is_empty():
+                    has_factor = True
+        except Exception:
+            pass
+
+        if has_factor:
+            logger.info("启动补跑: 日频因子已存在，跳过")
+        else:
+            logger.info("启动补跑: 执行因子更新")
+            try:
+                run_daily_factor_update()
+            except Exception as e:
+                logger.error("启动补跑因子更新失败: %s", e)
+
+        # ── 组合推荐 ──
+        has_rec = (
+            session.query(PortfolioRecommendation)
+            .filter(PortfolioRecommendation.recommendation_date == today)
+            .first()
+            is not None
+        )
+        if has_rec:
+            logger.info("启动补跑: 组合推荐已存在，跳过")
+        else:
+            logger.info("启动补跑: 执行组合推荐")
+            try:
+                run_portfolio_recommendation()
+            except Exception as e:
+                logger.error("启动补跑组合推荐失败: %s", e)
+
+        # ── ETF 推荐 ──
+        has_etf = (
+            session.query(EtfCandidate)
+            .filter(EtfCandidate.screening_date == today)
+            .first()
+            is not None
+        )
+        if has_etf:
+            logger.info("启动补跑: ETF 推荐已存在，跳过")
+        else:
+            logger.info("启动补跑: 执行 ETF 推荐")
+            try:
+                run_daily_etf()
+            except Exception as e:
+                logger.error("启动补跑 ETF 推荐失败: %s", e)
+
+    finally:
+        session.close()
+
+
+def shutdown_scheduler():
+    """关闭定时任务"""
+    if not scheduler.running:
+        logger.info("定时任务未在运行中，跳过关闭")
+        return
+
+    scheduler.shutdown()
+    logger.info("定时任务已关闭")
