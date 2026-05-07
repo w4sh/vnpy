@@ -32,7 +32,6 @@ def _candidate_to_dict(c: EtfCandidate) -> dict:
         "cost_score": float(c.cost_score) if c.cost_score else 0,
         "momentum_score": float(c.momentum_score) if c.momentum_score else 0,
         "volatility_score": float(c.volatility_score) if c.volatility_score else 0,
-        "yield_score": float(c.yield_score) if c.yield_score else 0,
         "technical_score": float(c.technical_score) if c.technical_score else 0,
         "performance_score": float(c.performance_score) if c.performance_score else 0,
         "current_price": float(c.current_price) if c.current_price else 0,

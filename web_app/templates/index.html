@@ -1151,8 +1151,52 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 推荐信号概览 -->
+                        <div class="section" id="rec-summary-section" style="display:none; margin-top: 16px;">
+                            <h5 style="color:#667eea; margin-bottom:10px;">信号概览</h5>
+                            <div class="etf-stat-cards">
+                                <div class="etf-stat-card" style="background: linear-gradient(135deg, #27ae60, #2ecc71);">
+                                    <div class="label">强烈买入</div><div class="value" id="rec-count-STRONG_BUY">0</div>
+                                </div>
+                                <div class="etf-stat-card" style="background: linear-gradient(135deg, #00bcd4, #4dd0e1);">
+                                    <div class="label">买入</div><div class="value" id="rec-count-BUY">0</div>
+                                </div>
+                                <div class="etf-stat-card" style="background: linear-gradient(135deg, #f39c12, #f1c40f);">
+                                    <div class="label">持有</div><div class="value" id="rec-count-HOLD">0</div>
+                                </div>
+                                <div class="etf-stat-card" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
+                                    <div class="label">卖出</div><div class="value" id="rec-count-SELL">0</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 13px; color: #666;">
+                                <span id="rec-summary-date"></span>
+                            </div>
+                        </div>
+
+                        <!-- 推荐信号详情表 -->
+                        <div class="section" id="rec-detail-section" style="display:none; margin-top: 16px;">
+                            <h5 style="color:#667eea; margin-bottom:10px;">操作建议</h5>
+                            <table class="results-table" id="rec-table">
+                                <thead>
+                                    <tr>
+                                        <th>代码</th>
+                                        <th>名称</th>
+                                        <th>信号</th>
+                                        <th>评分</th>
+                                        <th>当前价</th>
+                                        <th>持仓</th>
+                                        <th>建议操作</th>
+                                        <th>目标金额</th>
+                                        <th>理由</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rec-table-body"></tbody>
+                            </table>
+                        </div>
+
                         <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                            <strong style="color:#555;">历史数据</strong>
+                            <strong style="color:#555;">候选股排名</strong>
                             <div class="flatpickr-wrapper" style="display:inline-block; position:relative;">
                                 <input type="text" id="candidate-date-input" readonly style="cursor:pointer; padding:4px 28px 4px 14px; background:#f0f2ff; border:1px solid #667eea; border-radius:6px; color:#667eea; font-size:13px; width:120px; outline:none;" value="选择日期">
                                 <span style="position:absolute; right:8px; top:5px; font-size:10px; color:#667eea; pointer-events:none;">▼</span>
@@ -1523,6 +1567,7 @@
             if (tabName === 'signal') {
                 loadCandidates();
                 loadCandidateDates();
+                loadRecommendations();
             }
             // 重新触发 Chart.js 容器自适应
             window.dispatchEvent(new Event('resize'));
@@ -3019,6 +3064,70 @@
                 tbody.html('<tr><td colspan="15"><div class="error">请求失败: ' + (xhr.statusText || '网络错误') + '</div></td></tr>');
                 summaryDiv.hide();
                 resultsSection.hide();
+            });
+        }
+
+        // 加载推荐信号数据
+        function loadRecommendations() {
+            const recSummary = $('#rec-summary-section');
+            const recDetail = $('#rec-detail-section');
+            recSummary.hide();
+            recDetail.hide();
+
+            $.get('/api/recommendations/latest', function(response) {
+                if (!response.success || !response.recommendations || response.recommendations.length === 0) {
+                    return;
+                }
+
+                // 统计各信号数量
+                var counts = { STRONG_BUY: 0, BUY: 0, HOLD: 0, SELL: 0 };
+                response.recommendations.forEach(function(r) {
+                    if (counts[r.recommendation_type] !== undefined) {
+                        counts[r.recommendation_type]++;
+                    }
+                });
+                $('#rec-count-STRONG_BUY').text(counts.STRONG_BUY);
+                $('#rec-count-BUY').text(counts.BUY);
+                $('#rec-count-HOLD').text(counts.HOLD);
+                $('#rec-count-SELL').text(counts.SELL);
+                $('#rec-summary-date').text('推荐日期: ' + (response.recommendation_date || '--'));
+
+                // 渲染推荐表
+                var tbody = $('#rec-table-body');
+                var html = '';
+                response.recommendations.forEach(function(r) {
+                    var signalClass = 'badge-hold';
+                    var signalText = r.recommendation_type;
+                    if (r.recommendation_type === 'STRONG_BUY') {
+                        signalClass = 'badge-strong-buy'; signalText = '强烈买入';
+                    } else if (r.recommendation_type === 'BUY') {
+                        signalClass = 'badge-buy'; signalText = '买入';
+                    } else if (r.recommendation_type === 'SELL') {
+                        signalClass = 'badge-sell'; signalText = '卖出';
+                    } else {
+                        signalClass = 'badge-hold'; signalText = '持有';
+                    }
+
+                    var qtyText = r.suggested_quantity === undefined || r.suggested_quantity === null ? '-'
+                        : (r.suggested_quantity > 0 ? '+'+r.suggested_quantity
+                            : (r.suggested_quantity < 0 ? r.suggested_quantity.toString() : '维持'));
+
+                    html += '<tr>'
+                        + '<td>' + escapeHtml(r.symbol) + '</td>'
+                        + '<td>' + escapeHtml(r.name) + '</td>'
+                        + '<td><span class="badge ' + signalClass + '">' + signalText + '</span></td>'
+                        + '<td>' + (r.combined_score || 0).toFixed(1) + '</td>'
+                        + '<td>' + (r.current_price || 0).toFixed(2) + '</td>'
+                        + '<td>' + (r.is_held ? '持仓' : '-') + '</td>'
+                        + '<td>' + qtyText + '</td>'
+                        + '<td>' + (r.target_amount ? r.target_amount.toFixed(0) : '-') + '</td>'
+                        + '<td>' + escapeHtml(r.reason || '') + '</td>'
+                        + '</tr>';
+                });
+                tbody.html(html);
+
+                recSummary.show();
+                recDetail.show();
             });
         }
 
